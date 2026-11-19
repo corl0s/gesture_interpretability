@@ -11,6 +11,7 @@ external/
 *.tgz
 results_smoke/
 results_full/
+results_scaled*/
 logs/
 *_log*.txt
 .pip_cache/

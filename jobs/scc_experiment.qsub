@@ -26,6 +26,7 @@ export HF_HOME=/projectnb/bu-mlb/vishnuav/deixis/hf_home
 export HF_HUB_OFFLINE=1
 export PYTHONIOENCODING=utf-8
 export OMP_NUM_THREADS=${NSLOTS:-4}
+export TORCH_HOME=/projectnb/bu-mlb/vishnuav/deixis/torch_home   # torchvision weights (home is at quota)
 nvidia-smi --query-gpu=name,memory.total --format=csv
 echo "STEP=$STEP MODEL=$MODEL OUT=$OUT ARGS=${ARGS:-}"
 python experiments/$STEP.py --model "$MODEL" --out "$OUT" ${ARGS:-}

@@ -16,3 +16,4 @@ logs/
 *_log*.txt
 .pip_cache/
 hf_home/
+torch_home/

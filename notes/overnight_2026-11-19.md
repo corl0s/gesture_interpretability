@@ -63,6 +63,13 @@ Evidence type: E0 behavioural; E2 correlational; E3/E4 causal.
 - Robust across cues: the relay timing is the same whether the answer is right or wrong; the absolute cue effect is smaller when wrong.
 - Not robust: where the weakness comes from.
 
+8B follows mode (hand 492 pairs: 159 both / 333 half-wrong; arrow 383: 93 / 290):
+- The relay layers are the same in all four groups (image -> text crossing at L19–21, last rising at L23–24). This replicates 2B.
+- The absolute cue effect is much smaller in half-wrong pairs: median LD gap hand 11.9 vs 6.2–6.5, arrow 12.6 vs 4.2–4.9 nats.
+- The cue-patch share is NOT consistent across runs. In half-wrong pairs it is: 2B hand LOWER, 2B arrow SAME, 8B hand HIGHER (.52 vs .42), 8B arrow LOWER (.20–.28 vs .30–.33).
+- 8B arrow half-wrong pairs: the hand-off is later and incomplete (text_all slightly negative at L14–17; .27–.43 vs .47–.66 at L19–21; a residual image share stays late). This is the only condition with a relay-timing deficit.
+SUMMARY ACROSS 4 RUNS: robust = same relay route plus a smaller cue effect when wrong. Not robust = where the weakness originates. The 8B arrow shows a partial relay delay.
+
 METRIC CORRECTION: the E3 img_cue / img_obj numbers quoted above for correct mode (8B hand .22–.26, arrow .15–.18; 2B arrow .83–.92) are belief_shift. In 2B follows mode with ld_shift, arrow img_cue is .18–.34. The two metrics diverge for small subsets, so the cue-patch comparisons must be redone in ld_shift (requested from SCC). The hand-off layers agree in both metrics.
 
 ## E4: steering with object location IDs at the answer position (8B)

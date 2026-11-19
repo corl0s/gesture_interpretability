@@ -30,6 +30,17 @@ Evidence type: E0 behavioural; E2 correlational; E3/E4 causal.
 - So in 2B the referent word carries location even without objects, i.e. a direction or position code rather than an object-bound referent.
 - This suggests scale-dependent processing: 2B's referent slot carries a direction/position code, while 8B's binds to the object. This is a hypothesis to test with 32B. (The E3 cue-patch "support" for it was a belief_shift artifact and has been withdrawn.)
 
+32B E2 (Kang scale; 64 layers): object grid best R^2 .988 at L56.
+Hand/"at" nearest-ID is above null on 58/64 layers (peak .688 = 11/16 cells at L9). hand_empty/"at" is at 11/64, hand_empty/"last" at 19/64.
+Scale trend for hand/"at" (NN layers above null, with objects vs empty):
+| model | with objects | empty grid |
+|---|---|---|
+| 2B | 61% | 21% |
+| 8B | 81% | 17% |
+| 32B | 91% | 17% |
+- Referent binding at "at" grows with scale. NOTE: the earlier "2B = direction code" reading rested on arrow_empty and R^2; on hand NN, 2B also separates, just more weakly.
+- Arrow: a strong direction code in 32B (empty-grid R^2 above null on 59–60/64 layers), with moderate referent NN (29/64).
+
 ## E3: activation swapping, image -> text hand-off (correct-both pairs)
 | model | pairs (hand / arrow) | image/text crossover (ld_shift) | last picks up | relative depth of crossover |
 |---|---|---|---|---|
@@ -79,6 +90,8 @@ Max ID−random flip gap (rows are cues, columns are steering strengths):
 | hand (254 / 255 samples) | .776 @ L17 | .526 @ L16 |
 | arrow (230 / 226 samples) | .787 @ L17 | .637 @ L16 |
 At α=2 both cues have a window of L15–23 (ID flips >= .66–.69, peak ~.91) while random stays <= .18 through L33. This overlaps the E3 hand-off. Larger α is generic damage and moves the window earlier. Steering at "at" or at the cue patches is weak (<= .27).
+
+8B SEED 1 (new layouts) reproduces E4 to within ~0.03: hand α2 .784 @ L17 (seed 0 .776), arrow α2 .805 @ L17 (.787), hand α5 .557 @ L16 (.526). The windows are layout-independent.
 
 2B E4 (232–236 samples): max ID−random gap at "last" (rows are cues, columns are α):
 | | α=2 | α=5 |

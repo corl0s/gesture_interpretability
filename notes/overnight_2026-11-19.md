@@ -69,6 +69,15 @@ Max ID−random flip gap (rows are cues, columns are steering strengths):
 | arrow (230 / 226 samples) | .787 @ L17 | .637 @ L16 |
 At α=2 both cues have a window of L15–23 (ID flips >= .66–.69, peak ~.91) while random stays <= .18 through L33. This overlaps the E3 hand-off. Larger α is generic damage and moves the window earlier. Steering at "at" or at the cue patches is weak (<= .27).
 
+2B E4 (232–236 samples): max ID−random gap at "last" (rows are cues, columns are α):
+| | α=2 | α=5 |
+|---|---|---|
+| hand | .595 @ L12 | .349 @ L11 |
+| arrow | .550 @ L15 | .275 @ L11 |
+- At α=2 the window is L11–18 (ID flips >= .59), i.e. ~0.39–0.64 of depth. 8B is L15–23 (~0.42–0.64), so the same relative position, overlapping 2B's E3 hand-off (L14–15) and its best object-grid layer (L12).
+- 2B is more fragile: random flips are .15–.30 even at α=2, so the gaps are smaller than 8B's.
+- In 2B, steering at "at" works earlier (L5–8: .29–.32 vs random ~.09) than in 8B (L16–19: .21–.26).
+
 ## Status / pending
 - Pending: 4B triage (chk4b), the 4B suite (held), the 2B E2/E4/follows runs, all of 32B, 8B seed 1, and the follows-mode E3 (right vs wrong relay strength).
 - Incidents: follows-mode E3 had a ZeroDivisionError on exact bf16 ties, fixed in ab5b174 (NaN + checkpointing). Two 8B follows runs were lost and resubmitted. SGE job names can't start with a digit (fixed in 80f4170).

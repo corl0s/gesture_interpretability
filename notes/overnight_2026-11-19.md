@@ -14,6 +14,7 @@ Evidence type: E0 behavioural; E2 correlational; E3/E4 causal.
 | 32B | .683 / .377 / .945 | .666 / .334 / .968 |
 
 32B follows the cue on 95–97% of pairs but is right only 67–68% of the time. The gap between seeing the cue and acting on it persists even in the strongest model.
+4B VERDICT (chk4b, CPU fp32): our loader matches HF exactly (714/714 params identical, same generations). So 4B is genuinely cue-blind in short answers, YET when asked to describe the image it correctly says the hand "points diagonally upward and to the left toward a blue circle". It perceives the direction but doesn't use it to answer. This is the sharpest case of perceive-but-don't-use.
 4B ignores the cue: its answers track the no-cue prior. The generations are sane shape names (sometimes "plus" for the cross, which isn't scored yet). A loader-vs-HF check (chk4b) is pending.
 8B hand > arrow on both-correct: .262 vs .167, z ~ 7.
 

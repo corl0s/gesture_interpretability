@@ -121,7 +121,7 @@ def main():
     save_json(res, os.path.join(args.ids_dir, f"compare{tag}.json"))
 
     # Kang Fig. 5-style scatter at the layer where object IDs are most grid-like
-    best = int(np.argmax(res["object_self"]["grid_r2"]))
+    best = int(np.nanargmax(res["object_self"]["grid_r2"]))
     xa, ya = I.axes(obj_ids, grid)
     fig, ax = plt.subplots(figsize=(5, 5))
     c, _ = I.project_onto_plane(O[:, best].numpy(), xa[best].numpy(), ya[best].numpy())

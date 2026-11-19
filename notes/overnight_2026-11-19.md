@@ -102,6 +102,17 @@ At α=2 both cues have a window of L15–23 (ID flips >= .66–.69, peak ~.91) w
 - 2B is more fragile: random flips are .15–.30 even at α=2, so the gaps are smaller than 8B's.
 - In 2B, steering at "at" works earlier (L5–8: .29–.32 vs random ~.09) than in 8B (L16–19: .21–.26).
 
+## 32B E3 arrow (342 pairs) — CORRECTS the "same relative depth" claim
+image->text crossing at ~L47.5 of 64 = 0.74 of depth (2B 0.52, 8B 0.54); last rises L50–52 (~0.8).
+So the relay position is NOT a constant fraction of depth: 32B keeps the cue in image tokens much longer.
+Cue-patch share (ld) .40 flat over L2–33 (8B arrow .30), object patches ~.10 (8B .19). 32B hand E3 pending.
+
+## YouRefIt (real photos)
+8B R1 (1000 same-scene pairs, 2-choice): acc .726, both .49, follows .824; person-masked: acc .595, follows .692
+ -> non-gesture cues (where the person stands, mask leaks, mask position) explain part; gesture-specific share = .69 -> .82.
+2B R0 (1251 frames, centre-point grounding): lang .640 | gesture-only .222 | both .612 | gesture_mask .070 | lang_mask .621
+ -> the gesture carries real but weak information (3x the masked floor); adding it to the sentence slightly HURTS.
+
 ## Status / pending
 - Pending: 4B triage (chk4b), the 4B suite (held), the 2B E2/E4/follows runs, all of 32B, 8B seed 1, and the follows-mode E3 (right vs wrong relay strength).
 - Incidents: follows-mode E3 had a ZeroDivisionError on exact bf16 ties, fixed in ab5b174 (NaN + checkpointing). Two 8B follows runs were lost and resubmitted. SGE job names can't start with a digit (fixed in 80f4170).

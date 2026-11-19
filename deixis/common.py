@@ -12,7 +12,7 @@ from .stimuli import Layout, SHAPE_COLORS, Spec, render
 
 def base_parser(desc: str) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=desc)
-    p.add_argument("--model", default="qwen3vl-2b", help="alias (qwen3vl-2b/4b/8b) or HF id")
+    p.add_argument("--model", default="qwen3vl-2b", help="alias (qwen3vl-2b/4b/8b/32b) or HF id")
     p.add_argument("--device", default=None)
     p.add_argument("--dtype", default="auto", help="bfloat16 | float16 | float32")
     p.add_argument("--out", default="results")

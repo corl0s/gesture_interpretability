@@ -25,6 +25,7 @@ MODEL_ALIASES = {
     "qwen3vl-2b": "Qwen/Qwen3-VL-2B-Instruct",
     "qwen3vl-4b": "Qwen/Qwen3-VL-4B-Instruct",
     "qwen3vl-8b": "Qwen/Qwen3-VL-8B-Instruct",
+    "qwen3vl-32b": "Qwen/Qwen3-VL-32B-Instruct",
 }
 MERGED_PX = 32  # Qwen3-VL: patch 16 x spatial merge 2
 

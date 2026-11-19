@@ -1,5 +1,5 @@
 #!/bin/bash
-# Full-scale runs on SCC (14 GPU jobs). Dependencies enforced with -hold_jid.
+# Full-scale runs on SCC (13 GPU jobs). Dependencies enforced with -hold_jid.
 # Usage: bash jobs/submit_full_scale.sh [model] [out_dir]
 # Optional env:
 #   QSUB_EXTRA  extra qsub flags, override the .qsub defaults (e.g. "-l gpu_memory=80G -l h_rt=24:00:00" for 32B)
@@ -20,21 +20,26 @@ sub() {  # name, hold, step, args...
   printf 'STEP=%q\nMODEL=%q\nOUT=%q\nARGS=%q\n' "$step" "$MODEL" "$OUT" "$* ${COMMON:-}" > "$envf"
   qsub -terse -N "$name" $h ${QSUB_EXTRA:-} -v ENVFILE="$envf",STEP="$step",MODEL="$MODEL",OUT="$OUT" $Q
 }
-# E0 behaviour: 500 minimal pairs per cue (+ no-cue prior)
-sub e0 "" e0_baseline --n 500 --n_generate 50
+# E0 behaviour: 2000 minimal pairs per cue (+ no-cue prior)
+sub e0 "" e0_baseline --n 2000 --n_generate 50
 # E1 object spatial IDs (Kang Fig. 5 replication): all 56 ordered pairs of 8 shapes
 sub e1obj "" e1_extract_ids --condition object --n_pairs 56
 # E2 deictic IDs: four cue conditions (with / without objects)
 for c in hand arrow hand_empty arrow_empty; do
   sub e1$c "" e1_extract_ids --condition $c --n_pairs 56
 done
-# E3 cue swapping (Kang Fig. 4 analogue), every layer
-sub e3arrow "" e3_swap --cue arrow --n 200
-sub e3hand  "" e3_swap --cue hand  --n 300
-# E4 steering with object-derived IDs (Kang Fig. 6 analogue), alpha sweep
-for a in 2 5 10; do
-  sub e4hand$a  e1obj e4_steer --cue hand  --n 150 --alpha $a --id_source $OUT/$MODEL/ids/object.pt ${E4_EXTRA:-}
-  sub e4arrow$a e1obj e4_steer --cue arrow --n 150 --alpha $a --id_source $OUT/$MODEL/ids/object.pt ${E4_EXTRA:-}
+# E3 cue swapping (Kang Fig. 4 analogue), every layer.
+# correct: pairs right both ways (Kang-style; ~20-27% of candidates at 8B).
+# follows: also wrong-answer pairs, to compare relay strength right vs wrong.
+sub e3arrow "" e3_swap --cue arrow --n 1000
+sub e3hand  "" e3_swap --cue hand  --n 1000
+sub e3arrowF "" e3_swap --cue arrow --n 600 --pair_filter follows
+sub e3handF  "" e3_swap --cue hand  --n 600 --pair_filter follows
+# E4 steering with object-derived IDs (Kang Fig. 6 analogue). alpha=2 is the clean setting at 8B
+# (random control <20% flips); alpha=5 kept for comparison; alpha=10 dropped (generic damage).
+for a in 2 5; do
+  sub e4hand$a  e1obj e4_steer --cue hand  --n 400 --alpha $a --id_source $OUT/$MODEL/ids/object.pt ${E4_EXTRA:-}
+  sub e4arrow$a e1obj e4_steer --cue arrow --n 400 --alpha $a --id_source $OUT/$MODEL/ids/object.pt ${E4_EXTRA:-}
 done
 echo "submitted; E2 analysis (CPU) after the e1* jobs finish:"
 echo "  python experiments/e2_compare_ids.py --ids_dir $OUT/$MODEL/ids --n_perm 200"

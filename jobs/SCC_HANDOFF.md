@@ -5,7 +5,7 @@ Goal: run the full-scale E0–E4 experiments (see `../README.md`) on Qwen3-VL-8B
 ## What to check or adapt first (written without SCC access)
 1. In `scc_experiment.qsub` and `scc_setup.sh`: replace `CHANGE_ME_PROJECT` with the user's SCC project, and check the module names (`python3/3.11`, `cuda`) and the GPU flags (`gpus=1`, `gpu_c=8.0`, `gpu_memory=40G`). 8B in bf16 needs ~18 GB plus activations; any ≥24 GB GPU works.
 2. Run `bash jobs/scc_setup.sh` once on a login node. It creates the venv and pre-downloads the weights into `HF_HOME`.
-3. `bash jobs/submit_full_scale.sh qwen3vl-8b results_full` submits 15 jobs. E4 waits on E1-object (`-hold_jid`).
+3. `bash jobs/submit_full_scale.sh qwen3vl-8b results_full` submits 14 jobs. E4 waits on E1-object (`-hold_jid`).
 4. After the `e1*` jobs: `python experiments/e2_compare_ids.py --ids_dir results_full/qwen3vl-8b/ids` (CPU is enough).
 
 ## Expected outputs

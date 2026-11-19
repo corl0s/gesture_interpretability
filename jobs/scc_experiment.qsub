@@ -1,7 +1,7 @@
 #!/bin/bash -l
 # BU SCC (SGE) job for ONE experiment step. Submit through submit_full_scale.sh.
-# TO VERIFY ON SCC (the SCC session should confirm): project name, module versions, GPU flags.
-#$ -P CHANGE_ME_PROJECT
+# Submit from the repo root (logs/ must exist): qsub -v STEP=...,MODEL=...,OUT=...,ARGS="..." jobs/scc_experiment.qsub
+#$ -P mlresearch
 #$ -N deixis
 #$ -l h_rt=12:00:00
 #$ -l gpus=1
@@ -11,13 +11,21 @@
 #$ -j y
 #$ -o logs/$JOB_NAME.$JOB_ID.log
 
-set -euo pipefail
+set -eo pipefail
 cd "$SGE_O_WORKDIR"
-module load python3/3.11  2>/dev/null || module load python3
-module load cuda          2>/dev/null || true
+module unload miniconda academic-ml 2>/dev/null || true   # conflicts with the python3 module
+module load python3/3.12.4
+module load cuda/12.8
 source .venv/bin/activate          # created once: see jobs/scc_setup.sh
-export HF_HOME=${HF_HOME:-/projectnb/CHANGE_ME_PROJECT/$USER/hf_cache}
+set -u
+# Optional per-job env file (written by submit_full_scale.sh) carries ARGS verbatim.
+if [ -n "${ENVFILE:-}" ]; then source "$ENVFILE"; fi
+# Shared read-only HF cache (Qwen3-VL 2B/4B/8B/32B); write-side HF state stays in the repo dir.
+export HF_HUB_CACHE=/projectnb/bu-mlb/materials/hf_cache/hub
+export HF_HOME=/projectnb/bu-mlb/vishnuav/deixis/hf_home
+export HF_HUB_OFFLINE=1
 export PYTHONIOENCODING=utf-8
+export OMP_NUM_THREADS=${NSLOTS:-4}
 nvidia-smi --query-gpu=name,memory.total --format=csv
-echo "STEP=$STEP MODEL=$MODEL OUT=$OUT ARGS=$ARGS"
-python experiments/$STEP.py --model "$MODEL" --out "$OUT" $ARGS
+echo "STEP=$STEP MODEL=$MODEL OUT=$OUT ARGS=${ARGS:-}"
+python experiments/$STEP.py --model "$MODEL" --out "$OUT" ${ARGS:-}

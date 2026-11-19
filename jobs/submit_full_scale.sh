@@ -1,5 +1,5 @@
 #!/bin/bash
-# Full-scale runs on SCC (13 GPU jobs). Dependencies enforced with -hold_jid.
+# Full-scale runs on SCC (14 GPU jobs). Dependencies enforced with -hold_jid.
 # Usage: bash jobs/submit_full_scale.sh [model] [out_dir]
 # Optional env:
 #   QSUB_EXTRA  extra qsub flags, override the .qsub defaults (e.g. "-l gpu_memory=80G -l h_rt=24:00:00" for 32B)

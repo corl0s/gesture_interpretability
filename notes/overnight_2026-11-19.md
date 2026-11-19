@@ -11,6 +11,9 @@ Evidence type: E0 behavioural; E2 correlational; E3/E4 causal.
 | 2B | .575 / .164 / .822 | .588 / .181 / .831 |
 | 4B | .478 / .057 / .478 | .477 / .046 / .468 |
 | 8B | .611 / .262 / .830 | .567 / .167 / .717 |
+| 32B | .683 / .377 / .945 | .666 / .334 / .968 |
+
+32B follows the cue on 95–97% of pairs but is right only 67–68% of the time. The gap between seeing the cue and acting on it persists even in the strongest model.
 4B ignores the cue: its answers track the no-cue prior. The generations are sane shape names (sometimes "plus" for the cross, which isn't scored yet). A loader-vs-HF check (chk4b) is pending.
 8B hand > arrow on both-correct: .262 vs .167, z ~ 7.
 

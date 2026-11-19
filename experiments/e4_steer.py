@@ -64,6 +64,8 @@ def main():
                 v = ids[b_cell][L] - ids[a_cell][L]
                 r = torch.randn(v.shape, generator=g)
                 for kind, vec in (("id", v), ("random", r)):
+                    if vec.norm() == 0:  # e.g. layer 0: object-word IDs are exactly zero (token embedding)
+                        continue
                     add = args.alpha * norm * (vec / vec.norm())[None]
                     lg = vlm.forward(enc, add={L: (pos, add)})
                     ld = vlm.answer_logprob(lg, B) - vlm.answer_logprob(lg, A)

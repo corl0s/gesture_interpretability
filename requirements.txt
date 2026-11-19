@@ -1,0 +1,10 @@
+# torch with CUDA: install first from the PyTorch index, e.g.
+#   uv pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cu128
+transformers>=4.57,<4.58
+accelerate
+safetensors
+pillow
+numpy
+matplotlib
+scikit-learn
+tqdm

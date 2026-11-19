@@ -1,0 +1,23 @@
+#!/bin/bash -l
+# BU SCC (SGE) job for ONE experiment step. Submit through submit_full_scale.sh.
+# TO VERIFY ON SCC (the SCC session should confirm): project name, module versions, GPU flags.
+#$ -P CHANGE_ME_PROJECT
+#$ -N deixis
+#$ -l h_rt=12:00:00
+#$ -l gpus=1
+#$ -l gpu_c=8.0
+#$ -l gpu_memory=40G
+#$ -pe omp 4
+#$ -j y
+#$ -o logs/$JOB_NAME.$JOB_ID.log
+
+set -euo pipefail
+cd "$SGE_O_WORKDIR"
+module load python3/3.11  2>/dev/null || module load python3
+module load cuda          2>/dev/null || true
+source .venv/bin/activate          # created once: see jobs/scc_setup.sh
+export HF_HOME=${HF_HOME:-/projectnb/CHANGE_ME_PROJECT/$USER/hf_cache}
+export PYTHONIOENCODING=utf-8
+nvidia-smi --query-gpu=name,memory.total --format=csv
+echo "STEP=$STEP MODEL=$MODEL OUT=$OUT ARGS=$ARGS"
+python experiments/$STEP.py --model "$MODEL" --out "$OUT" $ARGS

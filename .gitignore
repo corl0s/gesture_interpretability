@@ -1,0 +1,15 @@
+# environments / caches
+.venv/
+__pycache__/
+*.pyc
+
+# reference clone (Kang et al.), not ours
+external/
+
+# large / generated
+*.pt
+*.tgz
+results_smoke/
+results_full/
+logs/
+*_log*.txt

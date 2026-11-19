@@ -1,0 +1,14 @@
+{
+ "hand": {
+  "acc": 0.5666666666666667,
+  "both_correct": 0.13333333333333333,
+  "pair_follows_cue": 0.9,
+  "n_pairs": 60
+ },
+ "arrow": {
+  "acc": 0.5916666666666667,
+  "both_correct": 0.18333333333333332,
+  "pair_follows_cue": 0.9166666666666666,
+  "n_pairs": 60
+ }
+}

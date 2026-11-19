@@ -105,7 +105,8 @@ At α=2 both cues have a window of L15–23 (ID flips >= .66–.69, peak ~.91) w
 ## 32B E3 arrow (342 pairs) — CORRECTS the "same relative depth" claim
 image->text crossing at ~L47.5 of 64 = 0.74 of depth (2B 0.52, 8B 0.54); last rises L50–52 (~0.8).
 So the relay position is NOT a constant fraction of depth: 32B keeps the cue in image tokens much longer.
-Cue-patch share (ld) .40 flat over L2–33 (8B arrow .30), object patches ~.10 (8B .19). 32B hand E3 pending.
+Cue-patch share (ld) .40 flat over L2–33 (8B arrow .30), object patches ~.10 (8B .19). 32B hand E3 (375 pairs): crossing L46–47 (~0.73 depth), same as arrow; hand patches alone carry .70 (L2–35) vs arrow .40 (8B hand .40); object patches .21–.24. At 32B the hand's information is strongly localised in the hand patches and differs from the arrow.
+8B R0 (YouRefIt, 1251 frames): lang .778 | gesture .265 | both .771 | gesture_mask .075 | lang_mask .747. Adding the gesture never helps (2B: .612 vs .640). Gesture-prompt predictions land closer to the person than the targets are (proximity bias; recompute with the fixed arm).
 
 ## YouRefIt (real photos)
 8B R1 (1000 same-scene pairs, 2-choice): acc .726, both .49, follows .824; person-masked: acc .595, follows .692

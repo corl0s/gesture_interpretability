@@ -30,6 +30,8 @@ def load_ids(path, slot, correct_only=False):
     d = torch.load(path, weights_only=False)
     k = d["slots"].index(slot)
     keep = list(range(len(d["locs"])))
+    if correct_only and d.get("aggregated"):
+        raise SystemExit(f"{path}: --correct_only needs per-image activations (file was saved with --aggregate)")
     if correct_only and d["correct"]:
         keep = [i for i in keep if d["correct"][i]]
     acts = d["acts"][keep, k].float()

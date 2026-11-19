@@ -10,6 +10,14 @@
                         location code at the referent slots?
 
 Saves resid_pre at every layer (incl. final-norm input) for every slot, float16.
+
+--obj_sizes 96,80,64,48   Kang-style size sweep (Kang: 4 sizes x 16 cells x 90 pairs = 5760 images).
+                          Ignored for *_empty conditions (no objects, so sizes would only duplicate images).
+--aggregate               Store the per-(group, cell) mean activation instead of every image. This is
+                          exactly what Kang's ID computation averages first (ids.ids_by_loc), so IDs are
+                          unchanged, and the file is n_sizes x smaller. Per-image correct/logit_diff are
+                          kept in 'correct_per_image' / 'logit_diff_per_image'; 'correct' becomes the
+                          per-row fraction correct (E2 --correct_only is not meaningful on aggregated files).
 """
 import os
 import sys
@@ -33,34 +41,61 @@ def main():
     p = base_parser(__doc__)
     p.add_argument("--condition", required=True, choices=["object", "hand", "arrow", "hand_empty", "arrow_empty"])
     p.add_argument("--n_pairs", type=int, default=20, help="object pairs (Kang: 90); 16 images each")
+    p.add_argument("--obj_sizes", default="", help="comma-separated object sizes in px, e.g. 96,80,64,48")
+    p.add_argument("--aggregate", action="store_true", help="save per-(group, cell) means (see docstring)")
     args = p.parse_args()
     layout, names = layout_from(args), names_from(args)
 
     cond = args.condition
+    sizes = [int(v) for v in args.obj_sizes.split(",") if v.strip()] or None
     if cond == "object":
-        specs = specs_object_ids(layout, names, args.n_pairs, args.seed)
+        specs = specs_object_ids(layout, names, args.n_pairs, args.seed, sizes)
     else:
         cue, empty = cond.split("_")[0], cond.endswith("_empty")
-        specs = specs_cue_ids(layout, names, cue, args.n_pairs, args.seed, args.min_sep, empty, args.origin_jitter)
+        specs = specs_cue_ids(layout, names, cue, args.n_pairs, args.seed, args.min_sep, empty, args.origin_jitter,
+                              None if empty else sizes)
     slots = SLOTS[cond.split("_")[0]]
 
     vlm = load_vlm(args)
     all_acts, correct, lds = [], [], []
+    sums, counts, row_correct = {}, {}, {}  # aggregate mode: running float32 sums per (group, cell)
     for spec in tqdm(specs, desc=f"extract {cond}"):
         enc, meta = encode_spec(vlm, spec, layout, args.obj_dir)
         pos = torch.cat([slot_positions(vlm, enc, spec, meta, s, layout) for s in slots])
         logits, acts = vlm.run_cache(enc, pos)  # [L+1, n_slots, d]
-        all_acts.append(acts.permute(1, 0, 2).half())  # [n_slots, L+1, d]
+        a = acts.permute(1, 0, 2)  # [n_slots, L+1, d]
+        ok = None
         if spec.target and spec.foil:
             ld = vlm.answer_logprob(logits, spec.target) - vlm.answer_logprob(logits, spec.foil)
             lds.append(ld)
-            correct.append(ld > 0)
-    out = {
-        "condition": cond, "slots": slots, "acts": torch.stack(all_acts),  # [N, n_slots, L+1, d]
-        "locs": [s.loc for s in specs], "groups": [s.group for s in specs],
-        "specs": [s.to_dict() for s in specs], "correct": correct, "logit_diff": lds,
-        "n_layers": vlm.n_layers, "deepstack_layers": vlm.deepstack_layers, "grid": layout.grid,
-    }
+            ok = ld > 0
+            correct.append(ok)
+        if args.aggregate:
+            key = (spec.group, tuple(spec.loc))
+            sums[key] = sums.get(key, 0) + a.float()
+            counts[key] = counts.get(key, 0) + 1
+            if ok is not None:
+                row_correct.setdefault(key, []).append(ok)
+        else:
+            all_acts.append(a.half())
+    if args.aggregate:
+        keys = sorted(sums)
+        out = {
+            "condition": cond, "slots": slots, "aggregated": True,
+            "acts": torch.stack([(sums[k] / counts[k]).half() for k in keys]),  # [G*cells, n_slots, L+1, d]
+            "locs": [k[1] for k in keys], "groups": [k[0] for k in keys], "counts": [counts[k] for k in keys],
+            "correct": [sum(row_correct[k]) / len(row_correct[k]) for k in keys] if row_correct else [],
+            "correct_per_image": correct, "logit_diff_per_image": lds,
+            "specs": [s.to_dict() for s in specs], "obj_sizes": sizes,
+            "n_layers": vlm.n_layers, "deepstack_layers": vlm.deepstack_layers, "grid": layout.grid,
+        }
+    else:
+        out = {
+            "condition": cond, "slots": slots, "acts": torch.stack(all_acts),  # [N, n_slots, L+1, d]
+            "locs": [s.loc for s in specs], "groups": [s.group for s in specs],
+            "specs": [s.to_dict() for s in specs], "correct": correct, "logit_diff": lds, "obj_sizes": sizes,
+            "n_layers": vlm.n_layers, "deepstack_layers": vlm.deepstack_layers, "grid": layout.grid,
+        }
     path = os.path.join(out_dir(args, "ids"), f"{cond}.pt")
     torch.save(out, path)
     if correct:

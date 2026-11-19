@@ -33,12 +33,15 @@ SHAPE_COLORS = {
     "diamond": (145, 55, 195),
     "cross": (70, 70, 70),
     "moon": (0, 160, 165),
+    "ring": (235, 100, 170),
+    "house": (130, 80, 40),
 }
 # Colour words the model may answer with instead of the shape name (each colour is unique
 # to one shape, so a colour word identifies the object). Used as extra answer variants.
 COLOR_ALIASES = {
     "star": ["yellow"], "heart": ["red"], "circle": ["blue"], "square": ["green"],
     "triangle": ["orange"], "diamond": ["purple"], "cross": ["gray", "grey", "black"], "moon": ["teal", "cyan"],
+    "ring": ["pink"], "house": ["brown"],
 }
 SKIN = (224, 172, 135)
 SKIN_EDGE = (150, 100, 70)
@@ -123,6 +126,13 @@ def draw_object(img: Image.Image, name: str, center: tuple, size: int, obj_dir: 
         d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=col)
         off = r * 0.45
         d.ellipse([cx - r + off, cy - r - off * 0.2, cx + r + off, cy + r - off * 0.2], fill=img.getpixel((0, 0)))
+    elif name == "ring":
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=col)
+        ri = r * 0.55
+        d.ellipse([cx - ri, cy - ri, cx + ri, cy + ri], fill=img.getpixel((0, 0)))
+    elif name == "house":
+        d.polygon([(cx, cy - r), (cx + r, cy - r * 0.1), (cx - r, cy - r * 0.1)], fill=col)
+        d.rectangle([cx - r * 0.72, cy - r * 0.1, cx + r * 0.72, cy + r * 0.9], fill=col)
     else:
         raise KeyError(name)
 
@@ -209,6 +219,7 @@ class Spec:
     foil: Optional[str] = None  # the competing answer
     group: int = 0  # mean-centering group (object pair), as in Kang et al.
     loc: Optional[tuple] = None  # grid cell this sample is indexed by
+    obj_size: Optional[int] = None  # per-sample object size (px); None = layout.obj_size
 
     def to_dict(self):
         return asdict(self)
@@ -219,7 +230,7 @@ def render(spec: Spec, layout: Layout, obj_dir: str = "data/objects") -> tuple:
     d = ImageDraw.Draw(img)
     d.line([(0, layout.grid * layout.cell), (layout.W, layout.grid * layout.cell)], fill=(215, 215, 210), width=2)
     for name, cell in spec.objects:
-        draw_object(img, name, layout.cell_center(*cell), layout.obj_size, obj_dir)
+        draw_object(img, name, layout.cell_center(*cell), spec.obj_size or layout.obj_size, obj_dir)
     meta = {"cue_bbox": None}
     if spec.cue is not None:
         origin = layout.origin(spec.origin_dx)
@@ -243,20 +254,22 @@ def object_pairs(names, n_pairs: Optional[int], seed: int):
     return pairs[:n_pairs] if n_pairs else pairs
 
 
-def specs_object_ids(layout: Layout, names, n_pairs=None, seed=0):
-    """E1 (Kang Fig. 5): object b swept over all cells, a at a random other cell."""
+def specs_object_ids(layout: Layout, names, n_pairs=None, seed=0, sizes=None):
+    """E1 (Kang Fig. 5): object b swept over all cells, a at a random other cell.
+    sizes: list of object sizes (Kang: 4 sizes per pair and cell); None = layout.obj_size."""
     rng = random.Random(seed)
     out = []
     for g, (a, b) in enumerate(object_pairs(names, n_pairs, seed)):
-        for cell in layout.cells():
-            a_cell = rng.choice([c for c in layout.cells() if c != cell])
-            out.append(Spec(objects=[(a, a_cell), (b, cell)], query=Q_KANG.format(a=a, b=b),
-                            target=b, group=g, loc=cell))
+        for size in (sizes or [None]):
+            for cell in layout.cells():
+                a_cell = rng.choice([c for c in layout.cells() if c != cell])
+                out.append(Spec(objects=[(a, a_cell), (b, cell)], query=Q_KANG.format(a=a, b=b),
+                                target=b, group=g, loc=cell, obj_size=size))
     return out
 
 
 def specs_cue_ids(layout: Layout, names, cue: str, n_pairs=None, seed=0, min_sep=25.0,
-                  empty=False, origin_jitter=0.0):
+                  empty=False, origin_jitter=0.0, sizes=None):
     """E2: cue points at every cell; target b sits there (unless empty), distractor a elsewhere.
 
     empty=True renders no objects at all, isolating the direction signal from referent binding.
@@ -264,16 +277,18 @@ def specs_cue_ids(layout: Layout, names, cue: str, n_pairs=None, seed=0, min_sep
     rng = random.Random(seed + 1)
     out = []
     for g, (a, b) in enumerate(object_pairs(names, n_pairs, seed)):
-        for cell in layout.cells():
-            dx = rng.uniform(-origin_jitter, origin_jitter)
-            origin = layout.origin(dx)
-            if empty:
-                objs = []
-            else:
-                cands = [c for c in layout.cells() if c != cell and angular_sep(layout, origin, c, cell) >= min_sep]
-                objs = [(a, rng.choice(cands)), (b, cell)]
-            out.append(Spec(objects=objs, cue=cue, cue_cell=cell, origin_dx=dx, query=Q_CUE[cue],
-                            target=None if empty else b, foil=None if empty else a, group=g, loc=cell))
+        for size in (sizes or [None]):
+            for cell in layout.cells():
+                dx = rng.uniform(-origin_jitter, origin_jitter)
+                origin = layout.origin(dx)
+                if empty:
+                    objs = []
+                else:
+                    cands = [c for c in layout.cells() if c != cell and angular_sep(layout, origin, c, cell) >= min_sep]
+                    objs = [(a, rng.choice(cands)), (b, cell)]
+                out.append(Spec(objects=objs, cue=cue, cue_cell=cell, origin_dx=dx, query=Q_CUE[cue],
+                                target=None if empty else b, foil=None if empty else a, group=g, loc=cell,
+                                obj_size=size))
     return out
 
 

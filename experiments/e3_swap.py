@@ -33,6 +33,11 @@ from deixis.stimuli import specs_minimal_pairs
 SUBSETS = ["image_all", "image_cue", "image_objects", "text_all", "cue_word", "last"]
 
 
+def _ratio(num, den):
+    """num / den, NaN when den == 0 (bf16 log-probs can tie exactly in follows mode)."""
+    return num / den if den != 0 else float("nan")
+
+
 def main():
     p = base_parser(__doc__)
     p.add_argument("--cue", default="hand", choices=["hand", "arrow"])
@@ -41,6 +46,7 @@ def main():
     p.add_argument("--subsets", default=",".join(SUBSETS))
     p.add_argument("--pair_filter", default="correct", choices=["correct", "follows"])
     p.add_argument("--min_gap", type=float, default=0.5, help="follows mode: min LD_x - LD_y (nats)")
+    p.add_argument("--save_every", type=int, default=25, help="checkpoint rows every N candidate pairs")
     args = p.parse_args()
     layout, names = layout_from(args), names_from(args)
     vlm = load_vlm(args)
@@ -48,6 +54,8 @@ def main():
     subsets = args.subsets.split(",")
     layers = list(range(0, vlm.n_layers + 1, args.layer_stride))
 
+    tag = "" if args.pair_filter == "correct" else f"_{args.pair_filter}"
+    rows_path = os.path.join(od, f"{args.cue}{tag}_rows.json")
     rows = []
     pairs = specs_minimal_pairs(layout, names, args.cue, args.n, args.seed, args.min_sep, args.origin_jitter)
     for k, (x, y) in enumerate(tqdm(pairs, desc="E3")):
@@ -80,10 +88,11 @@ def main():
                 pA, pB = vlm.answer_logprob(lp, A), vlm.answer_logprob(lp, B)
                 rows.append({"pair": k, "outcome": outcome, "ld_x": ld_x, "ld_y": ld_y,
                              "subset": s, "layer": L, "n_pos": len(px),
-                             "belief_shift": (lpA_x - pA) / (lpA_x - lpA_y),
-                             "ld_shift": (ld_x - (pA - pB)) / (ld_x - ld_y)})
-    tag = "" if args.pair_filter == "correct" else f"_{args.pair_filter}"
-    save_json(rows, os.path.join(od, f"{args.cue}{tag}_rows.json"))
+                             "belief_shift": _ratio(lpA_x - pA, lpA_x - lpA_y),
+                             "ld_shift": _ratio(ld_x - (pA - pB), ld_x - ld_y)})
+        if args.save_every and (k + 1) % args.save_every == 0:
+            save_json(rows, rows_path)  # checkpoint: a crash keeps finished pairs
+    save_json(rows, rows_path)
     if not rows:
         print("no pair was answered correctly in both directions; nothing to patch")
         return
@@ -91,7 +100,7 @@ def main():
     fig, axs = plt.subplots(1, 2, figsize=(12, 4))
     for metric, ax in zip(("ld_shift", "belief_shift"), axs):
         for s in sorted({r["subset"] for r in rows}):
-            m = [np.median([r[metric] for r in rows if r["subset"] == s and r["layer"] == L]) for L in layers]
+            m = [np.nanmedian([r[metric] for r in rows if r["subset"] == s and r["layer"] == L]) for L in layers]
             ax.plot(layers, m, marker=".", label=s)
         ax.set_title(f"{args.cue}: median {metric} (n pairs={len({r['pair'] for r in rows})})")
         ax.set_xlabel("layer (resid_pre)")

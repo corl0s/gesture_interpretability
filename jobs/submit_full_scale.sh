@@ -6,12 +6,12 @@
 #   LONG_EXTRA  extra qsub flags for E3/E4 only (e.g. "-l h_rt=48:00:00" for 32B; jobs >12 h can't use *-pub queues)
 #   COMMON      extra args for every step (e.g. "--seed 1" for a replication with new layouts)
 #   E4_EXTRA    extra args for E4 only (e.g. "--layer_stride 2" for 32B)
-#   PREFIX      job-name prefix so several models can be in the queue at once (default: model tag)
+#   PREFIX      job-name prefix so several models can be in the queue at once (default: q<size>, e.g. q8b; must start with a letter)
 set -e
 MODEL=${1:-qwen3vl-8b}
 OUT=${2:-results_full}
 Q=jobs/scc_experiment.qsub
-PREFIX=${PREFIX:-${MODEL#qwen3vl-}}
+PREFIX=${PREFIX:-q${MODEL#qwen3vl-}}  # SGE job names must not start with a digit
 mkdir -p logs/env
 sub() {  # name, hold, step, args...   (set XQ for per-call extra qsub flags)
   # ARGS travel in a per-job env file (qsub -v splits on commas / can mangle spaces).

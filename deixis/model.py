@@ -26,6 +26,8 @@ MODEL_ALIASES = {
     "qwen3vl-4b": "Qwen/Qwen3-VL-4B-Instruct",
     "qwen3vl-8b": "Qwen/Qwen3-VL-8B-Instruct",
     "qwen3vl-32b": "Qwen/Qwen3-VL-32B-Instruct",
+    # Kang et al. reference model ("qwen-7b" in their utils/extract_embeds.py)
+    "qwen25vl-7b": "Qwen/Qwen2.5-VL-7B-Instruct",
 }
 MERGED_PX = 32  # Qwen3-VL: patch 16 x spatial merge 2
 
@@ -80,7 +82,8 @@ def _load_streaming(cls, model_id: str, dtype, device):
                     dst[off:off + k].copy_(torch.frombuffer(buf, dtype=src_dt).to(dst.dtype))
                     off += k
                 loaded.add(name)
-    if getattr(config, "tie_word_embeddings", False) or getattr(config.text_config, "tie_word_embeddings", False):
+    tcfg = getattr(config, "text_config", config)
+    if getattr(config, "tie_word_embeddings", False) or getattr(tcfg, "tie_word_embeddings", False):
         model.tie_weights()
         loaded |= {k for k in params if k.startswith("lm_head")}
     missing = [k for k in params if k not in loaded]
@@ -109,7 +112,7 @@ class Encoded:
 
 class VLM:
     def __init__(self, model: str = "qwen3vl-2b", device: Optional[str] = None, dtype: str = "auto"):
-        from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
+        from transformers import AutoProcessor
 
         self.model_id = MODEL_ALIASES.get(model, model)
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -118,14 +121,21 @@ class VLM:
         self.dtype = getattr(torch, dtype)
         # Streaming loader instead of from_pretrained: on this Windows machine safetensors'
         # mmap path fails (paging-file error / access violation) when commit memory is low.
-        self.model = _load_streaming(Qwen3VLForConditionalGeneration, self.model_id, self.dtype, self.device).eval()
+        if "Qwen2.5-VL" in self.model_id:
+            from transformers import Qwen2_5_VLForConditionalGeneration as cls
+        else:
+            from transformers import Qwen3VLForConditionalGeneration as cls
+        self.model = _load_streaming(cls, self.model_id, self.dtype, self.device).eval()
         self.processor = AutoProcessor.from_pretrained(self.model_id)
         self.tok = self.processor.tokenizer
         lm = self.model.model.language_model
         self.layers = lm.layers
         self.final_norm = lm.norm
         self.n_layers = len(self.layers)
-        self.d_model = self.model.config.text_config.hidden_size
+        cfg = self.model.config
+        self.d_model = getattr(cfg, "text_config", cfg).hidden_size
+        vc = cfg.vision_config
+        self.merged_px = int(vc.patch_size) * int(getattr(vc, "spatial_merge_size", 2))  # Qwen3-VL 32, Qwen2.5-VL 28
         self.image_token_id = self.model.config.image_token_id
         self.deepstack_layers = len(getattr(self.model.config.vision_config, "deepstack_visual_indexes", []) or [])
         self._answer_cache: Dict[str, List[int]] = {}
@@ -144,7 +154,7 @@ class VLM:
         rows, cols = h // 2, w // 2
         assert rows * cols == len(image_pos), (rows, cols, len(image_pos))
         W, H = image.size
-        scale = (cols * MERGED_PX / W, rows * MERGED_PX / H)
+        scale = (cols * self.merged_px / W, rows * self.merged_px / H)
         return Encoded(inputs, tokens, image_pos, (rows, cols), scale, (W, H))
 
     def image_tokens_in_box(self, enc: Encoded, box) -> torch.Tensor:
@@ -152,8 +162,9 @@ class VLM:
         x0, y0, x1, y1 = box
         sx, sy = enc.scale
         rows, cols = enc.grid_hw
-        c0, c1 = max(0, int(x0 * sx // MERGED_PX)), min(cols - 1, int(x1 * sx // MERGED_PX))
-        r0, r1 = max(0, int(y0 * sy // MERGED_PX)), min(rows - 1, int(y1 * sy // MERGED_PX))
+        m = self.merged_px
+        c0, c1 = max(0, int(x0 * sx // m)), min(cols - 1, int(x1 * sx // m))
+        r0, r1 = max(0, int(y0 * sy // m)), min(rows - 1, int(y1 * sy // m))
         idx = [r * cols + c for r in range(r0, r1 + 1) for c in range(c0, c1 + 1)]
         return enc.image_pos[idx]
 

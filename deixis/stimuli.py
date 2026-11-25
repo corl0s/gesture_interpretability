@@ -179,7 +179,8 @@ def draw_hand(img: Image.Image, origin: tuple, target: tuple, length: float, k: 
     return (min(xs) - 14 * k, min(ys) - 14 * k, max(xs) + 14 * k, max(ys) + 14 * k)
 
 
-def draw_arrow(img: Image.Image, origin: tuple, target: tuple, length: float, k: float = 1.0) -> tuple:
+def draw_arrow(img: Image.Image, origin: tuple, target: tuple, length: float, k: float = 1.0,
+               color: tuple = (20, 20, 20)) -> tuple:
     """Arrow with the same origin, direction and tip as the hand."""
     d = ImageDraw.Draw(img)
     ux, uy = _unit(origin, target)
@@ -187,8 +188,8 @@ def draw_arrow(img: Image.Image, origin: tuple, target: tuple, length: float, k:
     tip = (origin[0] + ux * length, origin[1] + uy * length)
     head, hw = 26 * k, 14 * k
     base = (tip[0] - ux * head, tip[1] - uy * head)
-    _thick_line(d, origin, base, 9 * k, (20, 20, 20))
-    d.polygon([tip, (base[0] + px * hw, base[1] + py * hw), (base[0] - px * hw, base[1] - py * hw)], fill=(20, 20, 20))
+    _thick_line(d, origin, base, 9 * k, color)
+    d.polygon([tip, (base[0] + px * hw, base[1] + py * hw), (base[0] - px * hw, base[1] - py * hw)], fill=color)
     xs = [origin[0], tip[0], base[0] + px * hw, base[0] - px * hw]
     ys = [origin[1], tip[1], base[1] + py * hw, base[1] - py * hw]
     return (min(xs) - 6, min(ys) - 6, max(xs) + 6, max(ys) + 6)

@@ -1,0 +1,42 @@
+#!/bin/bash
+# Part B1: gesture-ID extraction on Kang-style scenes with real hand cut-outs.
+# Usage:
+#   MODE=pilot bash jobs/submit_gesture.sh [model ...]   behaviour only, scenes 0-40, one job per model
+#   MODE=full  bash jobs/submit_gesture.sh [model ...]   activations, NSCENES scenes in chunks of CHUNK
+# Env: OUT (results_gesture), OBJ (Kang renders), HANDS (cut-out dir with hands.json),
+#      EXCLUDE_HANDS (comma list), NSCENES (300), CHUNK (30), QSUB_EXTRA.
+# The CPU analysis (b1_analyse.py --ids_dir $OUT/<model>/gesture_ids [--spatial_ids ...]) is printed,
+# not submitted, like submit_kang.sh.
+set -e
+MODE=${MODE:-pilot}
+OUT=${OUT:-results_gesture}
+OBJ=${OBJ:-/projectnb/bu-mlb/vishnuav/deixis/data/kang/objects}
+HANDS=${HANDS:-/projectnb/bu-mlb/vishnuav/deixis/data/hands_yrf_preview}
+NSCENES=${NSCENES:-300}
+CHUNK=${CHUNK:-30}
+Q=jobs/scc_experiment.qsub
+mkdir -p logs/env
+[ -f "$HANDS/hands.json" ] || { echo "no hands.json in $HANDS"; exit 1; }
+[ -f "$OBJ/backpack.png" ] || { echo "Kang objects missing in $OBJ"; exit 1; }
+COMMON="--kang_obj_dir $OBJ --hand_dir $HANDS"
+[ -n "$EXCLUDE_HANDS" ] && COMMON="$COMMON --exclude_hands $EXCLUDE_HANDS"
+sub() {  # name, model, step, args...
+  local name=$1 model=$2 step=$3; shift 3
+  local envf="$PWD/logs/env/$name.env"
+  printf 'STEP=%q\nMODEL=%q\nOUT=%q\nARGS=%q\n' "$step" "$model" "$OUT" "$*" > "$envf"
+  qsub -terse -N "$name" ${QSUB_EXTRA:-} -v ENVFILE="$envf",STEP="$step",MODEL="$model",OUT="$OUT" $Q
+}
+for m in ${@:-qwen3vl-8b}; do
+  t=g${m#qwen}; t=${t//./}; t=${t//-/}
+  if [ "$MODE" = pilot ]; then
+    sub ${t}_pilot $m b1_gesture_ids $COMMON --scene_start 0 --scene_end 40 --behaviour_only
+  else
+    names=()
+    for ((s=0; s<NSCENES; s+=CHUNK)); do
+      e=$((s+CHUNK)); [ $e -gt $NSCENES ] && e=$NSCENES
+      sub ${t}_b1_$s $m b1_gesture_ids $COMMON --scene_start $s --scene_end $e
+      names+=(${t}_b1_$s)
+    done
+    echo "analysis: python experiments/b1_analyse.py --ids_dir $OUT/$m/gesture_ids [--spatial_ids results_kang/$m/kang_ids/universal.pt]  (hold on: $(IFS=,; echo "${names[*]}"))"
+  fi
+done

@@ -143,9 +143,11 @@ class VLM:
         torch.set_grad_enabled(False)
 
     # ------------------------------------------------------------------ inputs
-    def encode(self, image: Image.Image, question: str) -> Encoded:
+    def encode(self, image: Image.Image, question: str, prefix: str = "") -> Encoded:
+        """prefix: optional start of the assistant's answer (forced-prefix scoring); the last position
+        then predicts the token after the prefix."""
         msgs = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": question}]}]
-        text = self.processor.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
+        text = self.processor.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True) + prefix
         inputs = self.processor(text=[text], images=[image], return_tensors="pt").to(self.device)
         ids = inputs["input_ids"][0]
         tokens = self.tok.convert_ids_to_tokens(ids.tolist())

@@ -100,7 +100,9 @@ def main():
                                  "target": tname, "target_cell": list(sc.objects[t][1]), "t_idx": t,
                                  "foil": fname, "foil_cell": list(sc.objects[f][1]), "target_first": not swap,
                                  "angle": round(geo["angle"], 2), "tip_gap": round(geo["tip_gap"], 1),
-                                 "tip_nearest_is_target": geo["tip_nearest"] == t, "ld": round(ld, 4),
+                                 "tip_nearest_is_target": geo["tip_nearest"] == t,
+                                 "tip_nearest_cell": list(sc.objects[geo["tip_nearest"]][1]),
+                                 "objects": [[n, list(c)] for n, c in sc.objects], "ld": round(ld, 4),
                                  "correct": ld > 0})
     out = {"rows": rows, "positions": POS, "n_layers": vlm.n_layers, "model": vlm.model_id,
            "cues": cues, "k": args.k, "seed": args.seed, "hands": hands, "len": G.LEN, "obj_px": G.OBJ_PX,

@@ -128,3 +128,17 @@ Grid R^2 (affine fit of 2-D axis projection to true cells) [95% bootstrap CI ove
 - behaviour acc field INVALID for qwen25vl-7b (first-token scoring; it answers "The ... is to the right ...");
   qwen3vl-8b .963 unverified. Separate forced-prefix behaviour pass to be written.
 - Env: transformers 4.57.6, torch 2.8.0+cu128, fast image processor (default).
+
+## B1 gesture pilot (qwen3vl-8b, 40 scenes, 2312 images, behaviour only), 2026-11-25
+Kang-style scenes, 5 objects, real YouRefIt hand cut-outs (9 hands), LEN 340, 10 origins, forced prefix.
+acc            photo  cartoon arrow  empty
+all            .543   .554    .689   .460
+tip-nearest!=T .473   .470    .601   .468  (n=404/cue)
+tip-nearest=T  .707   .747    .891   .443  (n=174)
+- Hands (real = cartoon) are at chance when the fingertip-nearest object is not the target and below chance
+  at large fingertip gaps (.29-.37 beyond 500 px): the model reads a hand as "what is near the fingertip".
+  The arrow keeps some direction signal (.60). Realism of the hand is not the bottleneck at 8B.
+- Hands add answer-order bias (first-named picked .64 photo / .62 cartoon vs .48 arrow).
+- No hand is an outlier (.46-.62). Hand #7 excluded for the full run anyway (thin finger at LEN 340).
+- Analysis now also tests pointed cell vs fingertip-nearest cell in the activations (planted-data check OK);
+  grid R2 alone cannot separate the two (0.95 for a planted nearest-object code).

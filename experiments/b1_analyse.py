@@ -14,6 +14,11 @@ Per cue (photo / cartoon / arrow / empty), read-out position (cue / tgt / ans) a
                 pointed-cell effects, by arm-angle-bin effects (16 bins of 22.5 deg) and by cell x origin
                 effects. Target code: cell ~ cell x origin > angle. Arm-direction code: angle and
                 cell x origin > cell (the cell effect depends on where the arm comes from).
+  var_tip_nearest / pointed_over_tipnearest
+                the same held-out variance for the cell of the object nearest the fingertip; and, on images
+                where that object is not the target, the fraction where the activation is closer (cosine)
+                to the pointed cell's ID than to the fingertip-nearest cell's ID (0.5 = no preference).
+                Separates "encodes where the hand points" from "encodes what is near the fingertip".
   spatial link  (optional --spatial_ids = K1 universal.pt of the same model) cosine between gesture ID
                 and spatial ID of the same cell; 16-way nearest-ID accuracy (chance 1/16).
 Behaviour: accuracy per cue, per origin, and when the fingertip-nearest object is NOT the target.
@@ -126,7 +131,11 @@ def main():
         for x in r:
             by_o[x["origin"]].append(x["correct"])
         hard = [x["correct"] for x in r if not x["tip_nearest_is_target"]]
+        a1 = [x["correct"] for x in r if x["target_first"]]
+        a2 = [x["correct"] for x in r if not x["target_first"]]
         res["behaviour"][cue] = {"acc": float(np.mean([x["correct"] for x in r])), "n": len(r),
+                                 "acc_order_balanced": float((np.mean(a1) + np.mean(a2)) / 2) if a1 and a2 else None,
+                                 "pick_first_named": float(np.mean([x["correct"] == x["target_first"] for x in r])),
                                  "acc_tip_nearest_not_target": float(np.mean(hard)) if hard else None,
                                  "n_tip_nearest_not_target": len(hard),
                                  "acc_by_origin": {o: float(np.mean(v)) for o, v in sorted(by_o.items())}}
@@ -145,6 +154,9 @@ def main():
         scene = np.array([x["scene"] for x in R])
         inA = np.array([x["origin"] in side_A for x in R])
         cxo = np.array([CIDX[tuple(x["target_cell"])] * len(ORIGIN_NAMES) + ORIGIN_NAMES.index(x["origin"]) for x in R])
+        has_tip = "tip_nearest_cell" in R[0]
+        tipc = np.array([CIDX[tuple(x["tip_nearest_cell"])] for x in R]) if has_tip else None
+        differs = np.array([not x["tip_nearest_is_target"] for x in R])
         cand_by_g = defaultdict(set)
         for g, c in zip(grp, cell):
             cand_by_g[g].add(int(c))
@@ -176,23 +188,34 @@ def main():
                     if tr.sum() and te.sum():
                         Ct = fixed_effects(X[tr], grp[tr], cell[tr])
                         cr.append(decode(Xc[te], [cand[i] for i in np.nonzero(te)[0]], cell[te], Ct))
-                wi = []
+                wi, pt = [], []
                 for f in (0, 1):
                     tr, te = fold != f, fold == f
                     if tr.sum() and te.sum():
                         Ct = fixed_effects(X[tr], grp[tr], cell[tr])
                         wi.append(decode(Xc[te], [cand[i] for i in np.nonzero(te)[0]], cell[te], Ct))
+                        if has_tip:  # pointed vs fingertip-nearest: which cell ID is the activation closer to?
+                            m = te & differs
+                            if m.sum():
+                                Cn = torch.nn.functional.normalize(torch.nan_to_num(Ct), dim=1)
+                                S = torch.nn.functional.normalize(Xc[m], dim=1) @ Cn.T
+                                ii = torch.arange(int(m.sum()))
+                                pt.append(float((S[ii, torch.as_tensor(cell[m])] > S[ii, torch.as_tensor(tipc[m])]).float().mean()))
+                out["pointed_over_tipnearest"].append(float(np.mean(pt)) if pt else None)
                 out["decode_cross_origin"].append(float(np.mean([a for a, _ in cr])) if cr else None)
                 out["decode_within"].append(float(np.mean([a for a, _ in wi])) if wi else None)
                 out["decode_chance"].append(float(np.mean([c for _, c in wi])) if wi else None)
                 # held-out within-group variance explained by target cell vs arm-angle bin (2-fold over scenes)
-                vt, va, vx = [], [], []
+                vt, va, vx, vn = [], [], [], []
                 for f in (0, 1):
                     tr, te = fold != f, fold == f
                     if tr.sum() and te.sum():
                         vt.append(heldout_r2(X, grp, cell, tr, te, 16))
                         va.append(heldout_r2(X, grp, ang, tr, te, 16))
                         vx.append(heldout_r2(X, grp, cxo, tr, te, 16 * len(ORIGIN_NAMES)))
+                        if has_tip:
+                            vn.append(heldout_r2(X, grp, tipc, tr, te, 16))
+                out["var_tip_nearest"].append(float(np.mean(vn)) if vn else None)
                 out["var_target"].append(float(np.mean(vt)) if vt else None)
                 out["var_angle"].append(float(np.mean(va)) if va else None)
                 out["var_cell_x_origin"].append(float(np.mean(vx)) if vx else None)
@@ -211,7 +234,8 @@ def main():
             print(f"[{cue:7s} {pos:3s}] best L{layers[b]} grid R2 {r2[b]:.3f} | decode within "
                   f"{out['decode_within'][b]} cross-origin {out['decode_cross_origin'][b]} chance "
                   f"{out['decode_chance'][b]} | held-out var: cell {out['var_target'][b]} angle {out['var_angle'][b]} "
-                  f"cell x origin {out['var_cell_x_origin'][b]}")
+                  f"cell x origin {out['var_cell_x_origin'][b]} tip-nearest cell {out['var_tip_nearest'][b]} | "
+                  f"pointed>tip-nearest {out['pointed_over_tipnearest'][b]}")
     torch.save({"ids": saved, "cells": CELLS, "layers": layers, "model": meta["model"]},
                os.path.join(args.ids_dir, "gesture_ids.pt"))
     with open(os.path.join(args.ids_dir, "gesture_stats.json"), "w") as f:

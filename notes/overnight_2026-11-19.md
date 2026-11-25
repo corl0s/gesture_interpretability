@@ -117,3 +117,14 @@ Cue-patch share (ld) .40 flat over L2–33 (8B arrow .30), object patches ~.10 (
 ## Status / pending
 - Pending: 4B triage (chk4b), the 4B suite (held), the 2B E2/E4/follows runs, all of 32B, 8B seed 1, and the follows-mode E3 (right vs wrong relay strength).
 - Incidents: follows-mode E3 had a ZeroDivisionError on exact bf16 ties, fixed in ab5b174 (NaN + checkpointing). Two 8B follows runs were lost and resubmitted. SGE job names can't start with a digit (fixed in 80f4170).
+
+## K1: exact Kang spatial-ID replication (Fig 5), 2026-11-25 (SCC, patch applied uncommitted)
+90 pairs x 960 images, black canvas, query "Is {b} to the left or right of {a}?", read at b's last sub-token.
+Grid R^2 (affine fit of 2-D axis projection to true cells) [95% bootstrap CI over pairs], shuffled-cell null95:
+- qwen25vl-7b: best L9 @224 R2 .990 [.988,.991] null95 .61, var_expl .83; L12 best at sizes 74/124 (.985/.986).
+- qwen3vl-8b: best L14 at all sizes, R2 .994-.995 [~.993,.995], null95 .46-.61, var_expl .81-.89.
+- R2 is ~.97 already at L1 and stays >= .89 to the last layer: the grid is readable at almost every depth,
+  so geometry alone does not pick a "binding layer" -> causal tests (Fig 2 steering, Fig 4 mirror swap) are needed.
+- behaviour acc field INVALID for qwen25vl-7b (first-token scoring; it answers "The ... is to the right ...");
+  qwen3vl-8b .963 unverified. Separate forced-prefix behaviour pass to be written.
+- Env: transformers 4.57.6, torch 2.8.0+cu128, fast image processor (default).

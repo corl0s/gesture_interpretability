@@ -194,7 +194,39 @@ def draw_arrow(img: Image.Image, origin: tuple, target: tuple, length: float, k:
     return (min(xs) - 6, min(ys) - 6, max(xs) + 6, max(ys) + 6)
 
 
-CUES = {"hand": draw_hand, "arrow": draw_arrow}
+_photo_hands: dict = {}
+
+
+def _photo_hand(hand: str, hand_dir: str):
+    key = (hand_dir, hand)
+    if key not in _photo_hands:
+        import json
+        with open(os.path.join(hand_dir, "hands.json")) as f:
+            meta = json.load(f)[hand]
+        _photo_hands[key] = (Image.open(os.path.join(hand_dir, f"{hand}.png")).convert("RGBA"), meta)
+    return _photo_hands[key]
+
+
+def draw_photo_hand(img: Image.Image, origin: tuple, target: tuple, length: float, k: float = 1.0,
+                    hand: str = "", hand_dir: str = "data/hands") -> tuple:
+    """Paste a photographed hand cut-out (experiments/make_hands.py) so that its forearm cut ('base')
+    sits at `origin` and its fingertip lies `length` px along origin->target. Returns the alpha bbox."""
+    src, meta = _photo_hand(hand, hand_dir)
+    (bx, by), (tx, ty) = meta["base"], meta["tip"]
+    ux, uy = _unit(origin, target)
+    s = length / math.hypot(tx - bx, ty - by)  # output px per source px
+    th = math.atan2(uy, ux) - math.atan2(ty - by, tx - bx)  # rotation source -> output
+    c, si = math.cos(th) / s, math.sin(th) / s
+    ox, oy = origin
+    # inverse map: q = base + R(-th) (p - origin) / s
+    a_, b_, d_, e_ = c, si, -si, c
+    coeffs = (a_, b_, bx - (a_ * ox + b_ * oy), d_, e_, by - (d_ * ox + e_ * oy))
+    layer = src.transform(img.size, Image.AFFINE, coeffs, resample=Image.BICUBIC, fillcolor=(0, 0, 0, 0))
+    img.paste(layer, (0, 0), layer)
+    return layer.getchannel("A").getbbox()
+
+
+CUES = {"hand": draw_hand, "arrow": draw_arrow, "photo": draw_photo_hand}
 
 
 def angle_from(origin, p) -> float:
@@ -220,6 +252,7 @@ class Spec:
     group: int = 0  # mean-centering group (object pair), as in Kang et al.
     loc: Optional[tuple] = None  # grid cell this sample is indexed by
     obj_size: Optional[int] = None  # per-sample object size (px); None = layout.obj_size
+    hand: str = ""  # photo cue only: cut-out name in data/hands (experiments/make_hands.py)
 
     def to_dict(self):
         return asdict(self)
@@ -234,7 +267,9 @@ def render(spec: Spec, layout: Layout, obj_dir: str = "data/objects") -> tuple:
     meta = {"cue_bbox": None}
     if spec.cue is not None:
         origin = layout.origin(spec.origin_dx)
-        meta["cue_bbox"] = CUES[spec.cue](img, origin, layout.cell_center(*spec.cue_cell), layout.cue_length, layout.cue_scale)
+        kw = {"hand": spec.hand} if spec.cue == "photo" else {}
+        meta["cue_bbox"] = CUES[spec.cue](img, origin, layout.cell_center(*spec.cue_cell), layout.cue_length,
+                                          layout.cue_scale, **kw)
     return img, meta
 
 
@@ -244,6 +279,7 @@ Q_CUE = {
     "hand": "Which shape is the hand pointing at? Answer with only the name of the shape.",
     "arrow": "Which shape is the arrow pointing at? Answer with only the name of the shape.",
 }
+Q_CUE["photo"] = Q_CUE["hand"]
 # A text-only reference control: the referent is named, no cue in the image.
 Q_TEXT = "Is there a {b} in the image? Answer with one word."
 

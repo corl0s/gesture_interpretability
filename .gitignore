@@ -17,3 +17,4 @@ logs/
 .pip_cache/
 hf_home/
 torch_home/
+data/hands_raw/

@@ -142,3 +142,25 @@ tip-nearest=T  .707   .747    .891   .443  (n=174)
 - No hand is an outlier (.46-.62). Hand #7 excluded for the full run anyway (thin finger at LEN 340).
 - Analysis now also tests pointed cell vs fingertip-nearest cell in the activations (planted-data check OK);
   grid R2 alone cannot separate the two (0.95 for a planted nearest-object code).
+
+## B1 full run (qwen3vl-8b, 300 scenes, 17,260 images, acts at cue/tgt/ans), 2026-11-25
+SCC: results_gesture/qwen3vl-8b/gesture_ids/{gesture_stats.json, gesture_ids.pt}; tables in logs/b1_report_qwen3vl8b.txt.
+Behaviour (n=4315/cue; 3036 with tip-nearest != target):
+              acc   order-bal  pick-first  acc tip-nearest!=T
+  photo      .523   .521       .633        .441
+  cartoon    .521   .519       .618        .430
+  arrow      .647   .648       .469        .546
+Activations (decode chance .301; held-out var = within-group variance explained, 2-fold over scenes):
+- tgt (target name token): photo = cartoon = arrow to 3 decimals; empty (no objects) at chance; cross-origin >=
+  within (L20: .84/.86); spatial-ID nearest .875. -> this is the target object's own spatial ID, not gesture info.
+  Expected confound; the tgt position cannot answer Q1 as designed.
+- cue ("hand"/"arrow" token), drawn cues: cartoon var cell .15-.20 / angle .30-.39 / cell x origin .55-.67;
+  arrow .19-.26 / .44-.58 / .62-.75; decode within .60-.74 vs cross-origin .36-.51.
+  -> encodes the drawn direction (orientation from that origin), not the pointed cell.
+- cue, real hand (photo, empty): held-out var <= 0 at every layer; decode within .44-.50, cross-origin .34-.41.
+  -> a weak signal (cosine decoding above chance) but no linear direction code at the cue token.
+- ans: modest cell information at L20-25 for all three cues (arrow var ~.07-.08, decode .77/.71).
+- Cartoon encodes direction at the cue token as well as arrow does (cross-origin aside) yet behaves like the photo
+  hand (.52), so encoding the direction is not sufficient: the step from direction to object fails.
+Caveats: null95 computed only at L1,5,...,33 and is high (.66-.87): grid R2 is not informative here.
+spatial_nearest_acc at cue (photo .50 @L27, arrow .56) has no null yet; direction codes correlate with position.

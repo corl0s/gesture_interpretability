@@ -3,6 +3,10 @@
 # Usage:
 #   MODE=pilot bash jobs/submit_gesture.sh [model ...]   behaviour only, scenes 0-40, one job per model
 #   MODE=full  bash jobs/submit_gesture.sh [model ...]   activations, NSCENES scenes in chunks of CHUNK
+#   MODE=b2    bash jobs/submit_gesture.sh [model ...]   B2 positions (foil, object/cue/tip image tokens),
+#                                                        every 2nd layer; NSCENES (100) in chunks of CHUNK (25)
+#   MODE=swap  bash jobs/submit_gesture.sh [model ...]   mirror swap, one job per cue in CUES
+#                                                        (photo,cartoon,arrow), NPAIRS (150) pairs each
 # Env: OUT (results_gesture), OBJ (Kang renders), HANDS (cut-out dir with hands.json),
 #      EXCLUDE_HANDS (comma list), NSCENES (300), CHUNK (30), QSUB_EXTRA.
 # The CPU analysis (b1_analyse.py --ids_dir $OUT/<model>/gesture_ids [--spatial_ids ...]) is printed,
@@ -30,6 +34,18 @@ for m in ${@:-qwen3vl-8b}; do
   t=g${m#qwen}; t=${t//./}; t=${t//-/}
   if [ "$MODE" = pilot ]; then
     sub ${t}_pilot $m b1_gesture_ids $COMMON --scene_start 0 --scene_end 40 --behaviour_only
+  elif [ "$MODE" = b2 ]; then
+    N=${NSCENES_B2:-100}; C=${CHUNK_B2:-25}; names=()
+    for ((s=0; s<N; s+=C)); do
+      e=$((s+C)); [ $e -gt $N ] && e=$N
+      sub ${t}_b2_$s $m b1_gesture_ids $COMMON --scene_start $s --scene_end $e --b2 --layer_stride 2
+      names+=(${t}_b2_$s)
+    done
+    echo "analysis: python experiments/b2_analyse.py --ids_dir $OUT/$m/gesture_b2  (hold on: $(IFS=,; echo "${names[*]}"))"
+  elif [ "$MODE" = swap ]; then
+    for c in $(echo ${CUES:-photo,cartoon,arrow} | tr , ' '); do
+      sub ${t}_sw_$c $m b2_swap $COMMON --cue $c --n_pairs ${NPAIRS:-150} --layer_stride 2
+    done
   else
     names=()
     for ((s=0; s<NSCENES; s+=CHUNK)); do

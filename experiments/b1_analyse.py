@@ -20,7 +20,8 @@ Per cue (photo / cartoon / arrow / empty), read-out position (cue / tgt / ans) a
                 to the pointed cell's ID than to the fingertip-nearest cell's ID (0.5 = no preference).
                 Separates "encodes where the hand points" from "encodes what is near the fingertip".
   spatial link  (optional --spatial_ids = K1 universal.pt of the same model) cosine between gesture ID
-                and spatial ID of the same cell; 16-way nearest-ID accuracy (chance 1/16).
+                and spatial ID of the same cell; 16-way nearest-ID accuracy (chance 1/16), each with a null
+                from the same within-group target shuffles as grid_r2 (spatial_*_null95).
 Behaviour: accuracy per cue, per origin, and when the fingertip-nearest object is NOT the target.
 Writes gesture_stats.json and gesture_ids.pt in --ids_dir.
 """
@@ -94,6 +95,14 @@ def grid_r2(C):
     return float(I.grid_r2(c, CELLS))
 
 
+def spatial_link(C, Sp):
+    """Mean cosine between each cell's gesture ID and the same cell's spatial ID; 16-way nearest-ID acc."""
+    ok = ~torch.isnan(C).any(1)
+    sim = torch.nn.functional.normalize(C[ok], dim=1) @ torch.nn.functional.normalize(Sp, dim=1).T
+    tr_i = torch.nonzero(ok)[:, 0]
+    return float(sim[torch.arange(len(tr_i)), tr_i].mean()), float((sim.argmax(1) == tr_i).float().mean())
+
+
 def decode(Xc, cand, true, C):
     """Group-centred activations Xc [n, d]; cand: list of candidate cell-index lists; true: cell idx."""
     Cn = torch.nn.functional.normalize(torch.nan_to_num(C), dim=1)
@@ -108,6 +117,8 @@ def main():
     p.add_argument("--ids_dir", required=True)
     p.add_argument("--spatial_ids", default="", help="K1 universal.pt of the same model (optional)")
     p.add_argument("--n_perm", type=int, default=50)
+    p.add_argument("--null_stride", type=int, default=1,
+                   help="permutation null at every n-th analysed layer (B1 full run used ~4)")
     p.add_argument("--layers", default="", help="comma list; default all")
     p.add_argument("--seed", type=int, default=0)
     args, _ = p.parse_known_args()
@@ -172,15 +183,23 @@ def main():
                 C = fixed_effects(X, grp, cell)
                 ids_pos.append(C)
                 out["grid_r2"].append(grid_r2(C))
-                # permutation null: shuffle targets within groups
-                null = []
-                for _ in range(args.n_perm if L in layers[:: max(1, len(layers) // 8)] else 0):
+                # permutation null: shuffle targets within groups (also for the spatial-ID link)
+                null, ncos, nnn = [], [], []
+                Sp = torch.stack([spatial[c][L] for c in CELLS]) if spatial is not None else None
+                for _ in range(args.n_perm if L in layers[::max(1, args.null_stride)] else 0):
                     pc = cell.copy()
                     for g in np.unique(grp):
                         m = np.nonzero(grp == g)[0]
                         pc[m] = pc[m][rng.permutation(len(m))]
-                    null.append(grid_r2(fixed_effects(X, grp, pc)))
+                    Cp = fixed_effects(X, grp, pc)
+                    null.append(grid_r2(Cp))
+                    if Sp is not None:
+                        c_, n_ = spatial_link(Cp, Sp)
+                        ncos.append(c_)
+                        nnn.append(n_)
                 out["null95"].append(float(np.nanpercentile(null, 95)) if null else None)
+                out["spatial_cos_null95"].append(float(np.nanpercentile(ncos, 95)) if ncos else None)
+                out["spatial_nn_null95"].append(float(np.nanpercentile(nnn, 95)) if nnn else None)
                 Xc = demean(X, grp)
                 # cross-origin vs within (split by scene) decoding
                 cr = []
@@ -219,13 +238,10 @@ def main():
                 out["var_target"].append(float(np.mean(vt)) if vt else None)
                 out["var_angle"].append(float(np.mean(va)) if va else None)
                 out["var_cell_x_origin"].append(float(np.mean(vx)) if vx else None)
-                if spatial is not None:
-                    Sp = torch.stack([spatial[c][L] for c in CELLS])
-                    ok = ~torch.isnan(C).any(1)
-                    sim = torch.nn.functional.normalize(C[ok], dim=1) @ torch.nn.functional.normalize(Sp, dim=1).T
-                    tr_i = torch.nonzero(ok)[:, 0]
-                    out["spatial_diag_cos"].append(float(sim[torch.arange(len(tr_i)), tr_i].mean()))
-                    out["spatial_nearest_acc"].append(float((sim.argmax(1) == tr_i).float().mean()))
+                if Sp is not None:
+                    c_, n_ = spatial_link(C, Sp)
+                    out["spatial_diag_cos"].append(c_)
+                    out["spatial_nearest_acc"].append(n_)
             res["ids"][cue][pos] = {"layers": layers, **{k: [None if v is None else round(v, 4) for v in vs]
                                                          for k, vs in out.items()}}
             saved[cue][pos] = torch.stack(ids_pos)  # [n_layers_used, 16, d]

@@ -16,12 +16,15 @@ obj0..obj{k-1}, img_cue, img_tip; every --layer_stride-th layer). Per cue and sa
      obj_tag_behav_agree  sign(score diff) == sign(LD): the tag predicts the model's choice, right or wrong
 2. Pointed tag on the name tokens (name_tag_*): the same object's name token when it is the target vs the
    foil, demeaned within (scene, origin, object); held-out score(tgt token) > score(foil token)
-   (chance .5) and the same behaviour link.
+   (chance .5) and the same behaviour link; accuracy split by which named object is nearest the fingertip
+   (acc_tgt_tipn / acc_foil_tipn / acc_neither_tipn: a fingertip-proximity code would fall below .5 when
+   the foil is nearest). The direction fitted on all scenes is saved to name_tag_dirs.pt for steering.
 3. B1 metrics (decode within / cross-origin, held-out variance for cell / angle / cell x origin /
    fingertip-nearest cell, pointed over fingertip-nearest) at the text and cue-image positions.
    For img_tip / img_cue, note the tokens themselves move with the pointing direction, so a direction
    code there can come from token location alone; cross-origin target decoding is the informative number.
-Writes b2_stats.json in --ids_dir.
+Cross-origin decoding trains on one origin side and scene parity and tests on the other side and parity.
+Writes b2_stats.json and name_tag_dirs.pt in --ids_dir.
 """
 import argparse
 import glob
@@ -101,6 +104,8 @@ def object_tag(acts, R, P, L_i, k):
 
 
 def name_tag(acts, R, P, L_i):
+    """Section 2. Also returns the tag direction fitted on all scenes (unnormalised difference of means of
+    the group-demeaned name-token activations, target minus foil), used for steering in b2_swap."""
     feats, lab, gk, img = [], [], [], []
     for i, x in enumerate(R):
         for pos, j, l_ in (("tgt", x["t_idx"], 1), ("foil", x["f_idx"], 0)):
@@ -115,6 +120,8 @@ def name_tag(acts, R, P, L_i):
     keep = np.array([g in both for g in grp])
     X, lab, img, grp = X[torch.as_tensor(keep)], lab[keep], img[keep], groups(grp[keep])
     scene = np.array([R[i]["scene"] for i in img])
+    Xc_all = demean(X, grp)
+    w_all = Xc_all[torch.as_tensor(lab == 1)].mean(0) - Xc_all[torch.as_tensor(lab == 0)].mean(0)
     out = defaultdict(list)
     for f in (0, 1):
         s = tag_scores(X, grp, lab, scene % 2 != f)
@@ -122,11 +129,25 @@ def name_tag(acts, R, P, L_i):
         st = {img[r]: s[r] for r in te if lab[r] == 1}
         sf = {img[r]: s[r] for r in te if lab[r] == 0}
         for i in set(st) & set(sf):
-            out["acc"].append(st[i] > sf[i])
+            x = R[i]
+            hit = st[i] > sf[i]
+            out["acc"].append(hit)
             out["diff"].append(st[i] - sf[i])
-            out["ld"].append(R[i]["ld"])
+            out["ld"].append(x["ld"])
+            # pointing vs fingertip proximity: which of the two named objects is nearest the fingertip?
+            if x["tip_nearest_is_target"]:
+                out["acc_tgt_tipn"].append(hit)
+            elif list(x["foil_cell"]) == list(x["tip_nearest_cell"]):
+                out["acc_foil_tipn"].append(hit)
+            else:
+                out["acc_neither_tipn"].append(hit)
     out["chance"] = [0.5]
-    return summarise(out)
+    r = summarise(out)
+    for k in ("acc_tgt_tipn", "acc_foil_tipn", "acc_neither_tipn"):
+        if out[k]:
+            r[k] = round(float(np.mean(out[k])), 4)
+            r["n_" + k[4:]] = len(out[k])
+    return r, w_all
 
 
 def summarise(out):
@@ -157,8 +178,14 @@ def b1_metrics(X, R):
     Xc = demean(X, grp)
     fold = scene % 2
     cr, wi, pt, v = [], [], [], defaultdict(list)
-    for tr, te in ((inA, ~inA), (~inA, inA)):
-        cr.append(decode(Xc[te], [cand[i] for i in np.nonzero(te)[0]], cell[te], fixed_effects(X[tr], grp[tr], cell[tr])))
+    # cross-origin: train on one origin side AND one scene parity, test on the other side and parity, so
+    # scene-specific content (e.g. which name sits in which cell) cannot carry over
+    for sa in (inA, ~inA):
+        for f in (0, 1):
+            tr, te = sa & (fold == f), ~sa & (fold != f)
+            if tr.sum() and te.sum():
+                cr.append(decode(Xc[te], [cand[i] for i in np.nonzero(te)[0]], cell[te],
+                                 fixed_effects(X[tr], grp[tr], cell[tr])))
     for f in (0, 1):
         tr, te = fold != f, fold == f
         Ct = fixed_effects(X[tr], grp[tr], cell[tr])
@@ -189,13 +216,16 @@ def main():
     layers, k = meta["layers"], meta["k"]
     res = {"model": meta["model"], "n_images": len(rows), "layers": layers, "cues": {}}
     show = [int(x) for x in args.report_layers.split(",") if x]
+    dirs = {}
     for cue in meta["cues"]:
         idx = [i for i, x in enumerate(rows) if x["cue"] == cue]
         R, A = [rows[i] for i in idx], acts[idx]
         out = {"obj_tag": [], "name_tag": [], **{pos: [] for pos in B1_POS}}
         for L_i, L in enumerate(layers):
             out["obj_tag"].append(object_tag(A, R, P, L_i, k))
-            out["name_tag"].append(name_tag(A, R, P, L_i))
+            nt, w = name_tag(A, R, P, L_i)
+            out["name_tag"].append(nt)
+            dirs.setdefault(cue, []).append(w)
             for pos in B1_POS:
                 out[pos].append(b1_metrics(A[:, P[pos], L_i].float(), R))
         res["cues"][cue] = out
@@ -212,7 +242,10 @@ def main():
     import json
     with open(os.path.join(args.ids_dir, "b2_stats.json"), "w") as f:
         json.dump(res, f, indent=1)
-    print("saved", os.path.join(args.ids_dir, "b2_stats.json"))
+    torch.save({"layers": layers, "model": meta["model"], "position": "name last sub-token (first occurrence)",
+                "dirs": {c: torch.stack(v) for c, v in dirs.items()}},
+               os.path.join(args.ids_dir, "name_tag_dirs.pt"))
+    print("saved", os.path.join(args.ids_dir, "b2_stats.json"), "and name_tag_dirs.pt")
 
 
 if __name__ == "__main__":

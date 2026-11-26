@@ -22,6 +22,9 @@ Per cue (photo / cartoon / arrow / empty), read-out position (cue / tgt / ans) a
   spatial link  (optional --spatial_ids = K1 universal.pt of the same model) cosine between gesture ID
                 and spatial ID of the same cell; 16-way nearest-ID accuracy (chance 1/16), each with a null
                 from the same within-group target shuffles as grid_r2 (spatial_*_null95).
+  fingertip cell  the same for IDs keyed by the cell under the fingertip (tipcell_spatial_*, var_tip_cell):
+                does the cue token hold the hand's own location rather than the pointed cell?
+Cross-origin decoding trains on one origin side and scene parity and tests on the other side and parity.
 Behaviour: accuracy per cue, per origin, and when the fingertip-nearest object is NOT the target.
 Writes gesture_stats.json and gesture_ids.pt in --ids_dir.
 """
@@ -93,6 +96,16 @@ def grid_r2(C):
     xa, ya = kang_axes(ids, size=0)
     c, _ = I.project_onto_plane(C.numpy(), xa[0].numpy(), ya[0].numpy())
     return float(I.grid_r2(c, CELLS))
+
+
+def fingertip_cell(x):
+    """Grid cell (x, y) under the fingertip: LEN px from the origin towards the target cell centre."""
+    from deixis.gesture import CELL, LEN, ORIGINS
+    ox, oy = ORIGINS[x["origin"]]
+    tx, ty = (x["target_cell"][0] + 0.5) * CELL, (x["target_cell"][1] + 0.5) * CELL
+    d = max(1e-6, ((tx - ox) ** 2 + (ty - oy) ** 2) ** 0.5)
+    px, py = ox + (tx - ox) / d * LEN, oy + (ty - oy) / d * LEN
+    return (min(GRID - 1, max(0, int(px // CELL))), min(GRID - 1, max(0, int(py // CELL))))
 
 
 def spatial_link(C, Sp):
@@ -173,6 +186,7 @@ def main():
             cand_by_g[g].add(int(c))
         cand = [sorted(cand_by_g[g]) for g in grp]
         fold = np.array([s % 2 for s in scene])
+        tipcell = np.array([CIDX[fingertip_cell(x)] for x in R])  # cell under the fingertip / arrow tip
         res["ids"][cue] = {}
         saved[cue] = {}
         for pi, pos in enumerate(positions):
@@ -186,27 +200,37 @@ def main():
                 # permutation null: shuffle targets within groups (also for the spatial-ID link)
                 null, ncos, nnn = [], [], []
                 Sp = torch.stack([spatial[c][L] for c in CELLS]) if spatial is not None else None
+                tcos, tnn = [], []
                 for _ in range(args.n_perm if L in layers[::max(1, args.null_stride)] else 0):
-                    pc = cell.copy()
+                    perm = np.arange(len(cell))  # shuffle images within groups (target and tip cell together)
                     for g in np.unique(grp):
                         m = np.nonzero(grp == g)[0]
-                        pc[m] = pc[m][rng.permutation(len(m))]
-                    Cp = fixed_effects(X, grp, pc)
+                        perm[m] = m[rng.permutation(len(m))]
+                    Cp = fixed_effects(X, grp, cell[perm])
                     null.append(grid_r2(Cp))
                     if Sp is not None:
                         c_, n_ = spatial_link(Cp, Sp)
                         ncos.append(c_)
                         nnn.append(n_)
+                        c_, n_ = spatial_link(fixed_effects(X, grp, tipcell[perm]), Sp)
+                        tcos.append(c_)
+                        tnn.append(n_)
                 out["null95"].append(float(np.nanpercentile(null, 95)) if null else None)
                 out["spatial_cos_null95"].append(float(np.nanpercentile(ncos, 95)) if ncos else None)
                 out["spatial_nn_null95"].append(float(np.nanpercentile(nnn, 95)) if nnn else None)
+                out["tipcell_cos_null95"].append(float(np.nanpercentile(tcos, 95)) if tcos else None)
+                out["tipcell_nn_null95"].append(float(np.nanpercentile(tnn, 95)) if tnn else None)
                 Xc = demean(X, grp)
                 # cross-origin vs within (split by scene) decoding
+                # (train on one origin side AND scene parity, test on the other side and parity: scene-specific
+                # content, e.g. which name sits in which cell, cannot carry over)
                 cr = []
-                for tr, te in ((inA, ~inA), (~inA, inA)):
-                    if tr.sum() and te.sum():
-                        Ct = fixed_effects(X[tr], grp[tr], cell[tr])
-                        cr.append(decode(Xc[te], [cand[i] for i in np.nonzero(te)[0]], cell[te], Ct))
+                for sa in (inA, ~inA):
+                    for f in (0, 1):
+                        tr, te = sa & (fold == f), ~sa & (fold != f)
+                        if tr.sum() and te.sum():
+                            Ct = fixed_effects(X[tr], grp[tr], cell[tr])
+                            cr.append(decode(Xc[te], [cand[i] for i in np.nonzero(te)[0]], cell[te], Ct))
                 wi, pt = [], []
                 for f in (0, 1):
                     tr, te = fold != f, fold == f
@@ -225,16 +249,18 @@ def main():
                 out["decode_within"].append(float(np.mean([a for a, _ in wi])) if wi else None)
                 out["decode_chance"].append(float(np.mean([c for _, c in wi])) if wi else None)
                 # held-out within-group variance explained by target cell vs arm-angle bin (2-fold over scenes)
-                vt, va, vx, vn = [], [], [], []
+                vt, va, vx, vn, vtc = [], [], [], [], []
                 for f in (0, 1):
                     tr, te = fold != f, fold == f
                     if tr.sum() and te.sum():
                         vt.append(heldout_r2(X, grp, cell, tr, te, 16))
                         va.append(heldout_r2(X, grp, ang, tr, te, 16))
                         vx.append(heldout_r2(X, grp, cxo, tr, te, 16 * len(ORIGIN_NAMES)))
+                        vtc.append(heldout_r2(X, grp, tipcell, tr, te, 16))
                         if has_tip:
                             vn.append(heldout_r2(X, grp, tipc, tr, te, 16))
                 out["var_tip_nearest"].append(float(np.mean(vn)) if vn else None)
+                out["var_tip_cell"].append(float(np.mean(vtc)) if vtc else None)
                 out["var_target"].append(float(np.mean(vt)) if vt else None)
                 out["var_angle"].append(float(np.mean(va)) if va else None)
                 out["var_cell_x_origin"].append(float(np.mean(vx)) if vx else None)
@@ -242,6 +268,9 @@ def main():
                     c_, n_ = spatial_link(C, Sp)
                     out["spatial_diag_cos"].append(c_)
                     out["spatial_nearest_acc"].append(n_)
+                    c_, n_ = spatial_link(fixed_effects(X, grp, tipcell), Sp)  # IDs keyed by fingertip cell
+                    out["tipcell_spatial_cos"].append(c_)
+                    out["tipcell_spatial_nn"].append(n_)
             res["ids"][cue][pos] = {"layers": layers, **{k: [None if v is None else round(v, 4) for v in vs]
                                                          for k, vs in out.items()}}
             saved[cue][pos] = torch.stack(ids_pos)  # [n_layers_used, 16, d]

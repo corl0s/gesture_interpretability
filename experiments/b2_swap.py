@@ -14,8 +14,16 @@ Controls (same layer, same positions):
   hand_cue_word, hand_img_cue    (photo only) source = x re-rendered with a different hand, still pointing
                                  at A: a change of hand appearance of the size the swap brings, which should
                                  move nothing
+Text subsets (B2 found the pointing reaches the text at L16-24 and tags the object NAMES):
+  name_A, name_B (all sub-tokens of each name in the question), names (both), prefix (the forced answer
+  prefix "The {cue} is pointing at the"), last (its final token).
+Steering (--steer_dirs = name_tag_dirs.pt from b2_analyse): at layer L, add s*w at B's name and -s*w at A's
+  name (last sub-tokens; w = the cue's name-tag direction at L, target minus foil), for s in --steer_scales:
+  steer_s<s>; control steer_noise_s<s> = random vectors of the same norm at the same positions. Use scenes the
+  directions were not fitted on (b2 used 0-99).
 Only pairs whose answer follows the cue (LD_x - LD_y > --min_gap) are patched; each row records whether
-the model is right on x and y. Output: <out>/<model>/gesture_swap/<cue>_rows.json and <cue>_swap.png.
+the model is right on x and y. Every candidate pair's LD_x, LD_y is logged ("candidates"), so the share of
+pairs that move the wrong way is known. Output: <out>/<model>/gesture_swap<--tag>/<cue>_rows.json, <cue>_swap.png.
 """
 import dataclasses
 import os
@@ -38,6 +46,16 @@ from deixis import gesture as G
 from deixis.common import base_parser, load_vlm, out_dir, save_json
 
 SUBSETS = ["cue_word", "img_cue", "img_objects", "image_all", "text_all"]
+TEXT_SUBSETS = ["name_A", "name_B", "names", "prefix", "last"]
+
+
+def name_span(vlm, enc, name):
+    """Sequence positions of all sub-tokens of `name` (first occurrence after the image)."""
+    sub = vlm.tok.tokenize(" " + name)
+    p = vlm.find_token(enc, name, 0)
+    span = list(range(p - len(sub) + 1, p + 1))
+    assert [enc.tokens[i] for i in span] == sub, (name, [enc.tokens[i] for i in span], sub)
+    return span
 
 
 def token_cover(vlm, enc, mask, thr=0.10):
@@ -74,13 +92,16 @@ def main():
     p.add_argument("--n_pairs", type=int, default=150, help="stop after this many patched pairs")
     p.add_argument("--min_gap", type=float, default=0.5, help="min LD_x - LD_y (nats) for a pair to be patched")
     p.add_argument("--layer_stride", type=int, default=2)
-    p.add_argument("--subsets", default=",".join(SUBSETS))
+    p.add_argument("--subsets", default=",".join(SUBSETS), help=f"from {SUBSETS + TEXT_SUBSETS}")
+    p.add_argument("--steer_dirs", default="", help="name_tag_dirs.pt from b2_analyse (enables steering)")
+    p.add_argument("--steer_scales", default="1,3")
+    p.add_argument("--tag", default="", help="output dir suffix: gesture_swap<tag>")
     p.add_argument("--save_every", type=int, default=10)
     args = p.parse_args()
 
     vlm = load_vlm(args)
     vlm.answer_aliases = {}
-    od = out_dir(args, "gesture_swap")
+    od = out_dir(args, "gesture_swap" + args.tag)
     rows_path = os.path.join(od, f"{args.cue}_rows.json")
     with open(os.path.join(args.hand_dir, "hands.json")) as f:
         hands = [h for h in sorted(json.load(f)) if h not in set(args.exclude_hands.split(","))]
@@ -91,6 +112,11 @@ def main():
     subsets = args.subsets.split(",")
     cw = G.CUE_WORD[args.cue]
     gen = torch.Generator().manual_seed(args.seed)
+    steer, scales = None, [float(x) for x in args.steer_scales.split(",") if x]
+    if args.steer_dirs:
+        sd = torch.load(args.steer_dirs, weights_only=False)
+        steer = {L: sd["dirs"][args.cue][i].float() for i, L in enumerate(sd["layers"])}
+    cands = []
 
     rows, n_pairs, n_cand = [], 0, 0
     bar = tqdm(total=args.n_pairs, desc=f"swap {args.cue}")
@@ -123,6 +149,7 @@ def main():
             lx, cx = vlm.run_cache(ex, None, layers)  # full-sequence resid_pre [nL, seq, d]
             ly, cy = vlm.run_cache(ey, None, layers)
             ld_x, ld_y = ld(lx), ld(ly)
+            cands.append({"scene": si, "origin": origin, "A": A, "B": B, "ld_x": round(ld_x, 4), "ld_y": round(ld_y, 4)})
             if not ld_x - ld_y > args.min_gap:
                 continue
             o = G.ORIGINS[origin]
@@ -134,6 +161,11 @@ def main():
                    "img_objects": tokens_inside(vlm, ex, boxes[a]) + tokens_inside(vlm, ex, boxes[b]),
                    "image_all": ex.image_pos.tolist(),
                    "text_all": list(range(img_start, ex.seq_len))}
+            nA, nB = name_span(vlm, ex, A), name_span(vlm, ex, B)
+            n_pre = len(vlm.tok.tokenize(pre))
+            assert ex.tokens[-n_pre:] == vlm.tok.tokenize(pre), (ex.tokens[-n_pre - 2:], pre)
+            pos.update({"name_A": nA, "name_B": nB, "names": nA + nB,
+                        "prefix": list(range(ex.seq_len - n_pre, ex.seq_len)), "last": [ex.last]})
             ch = None  # hand-appearance control source: x with another hand (skip if it touches an object)
             if args.cue == "photo":
                 sh = dataclasses.replace(sc, hand=other)
@@ -155,7 +187,7 @@ def main():
                     px = torch.tensor(sorted(set(pos[s])))
                     if len(px):
                         res[s] = shift(vlm.forward(ex, patch={L: (px, cy[li][px])}))
-                for s in ("cue_word", "img_cue"):
+                for s in [s_ for s_ in ("cue_word", "img_cue", "names") if s_ in subsets]:
                     px = torch.tensor(sorted(set(pos[s])))
                     if not len(px):
                         continue
@@ -165,22 +197,34 @@ def main():
                     res[f"noise_{s}"] = shift(vlm.forward(ex, patch={L: (px, cx[li][px] + nz)}))
                     if ch is not None:
                         res[f"hand_{s}"] = shift(vlm.forward(ex, patch={L: (px, ch[li][px])}))
+                if steer is not None and L in steer:
+                    px = torch.tensor([nA[-1], nB[-1]])
+                    w = steer[L]
+                    for sc_ in scales:
+                        vec = torch.stack([-sc_ * w, sc_ * w])
+                        res[f"steer_s{sc_:g}"] = shift(vlm.forward(ex, add={L: (px, vec)}))
+                        nz = torch.randn(vec.shape, generator=gen)
+                        nz = nz / nz.norm(dim=-1, keepdim=True) * vec.norm(dim=-1, keepdim=True)
+                        res[f"steer_noise_s{sc_:g}"] = shift(vlm.forward(ex, add={L: (px, nz)}))
                 rows.append({**base, "layer": L, **{f"n_{s}": len(set(v)) for s, v in pos.items()}, **res})
             n_pairs += 1
             bar.update(1)
             if args.save_every and n_pairs % args.save_every == 0:
-                save_json({"rows": rows, "n_candidates": n_cand}, rows_path)
+                save_json({"rows": rows, "n_candidates": n_cand, "candidates": cands}, rows_path)
     bar.close()
     save_json({"rows": rows, "n_candidates": n_cand, "n_pairs": n_pairs, "layers": layers, "model": vlm.model_id,
-               "min_gap": args.min_gap}, rows_path)
-    print(f"{args.cue}: {n_pairs} pairs follow the cue out of {n_cand} candidates")
+               "min_gap": args.min_gap, "candidates": cands}, rows_path)
+    g = np.array([c["ld_x"] - c["ld_y"] for c in cands])
+    print(f"{args.cue}: {n_pairs} pairs follow the cue out of {n_cand} candidates; LD_x - LD_y > {args.min_gap}: "
+          f"{np.mean(g > args.min_gap):.3f}, < -{args.min_gap} (moves the wrong way): {np.mean(g < -args.min_gap):.3f}, "
+          f"median {np.median(g):.3f}")
     if not rows:
         return
-    keys = [k for k in rows[0] if k in SUBSETS or k.startswith(("noise_", "hand_"))]
+    keys = [k for k in rows[0] if k in SUBSETS + TEXT_SUBSETS or k.startswith(("noise_", "hand_", "steer_"))]
     fig, ax = plt.subplots(figsize=(8, 4.5))
     for k in keys:
         m = [np.nanmedian([r.get(k, np.nan) for r in rows if r["layer"] == L]) for L in layers]
-        ax.plot(layers, m, marker=".", ls="--" if k.startswith(("noise_", "hand_")) else "-", label=k)
+        ax.plot(layers, m, marker=".", ls="--" if k.startswith(("noise_", "hand_", "steer_noise")) else "-", label=k)
     ax.axhline(0, color="gray", lw=0.5)
     # Qwen3-VL DeepStack adds visual features at image positions in the first layers: image swaps there
     # leave x's injected features in place, so they understate what the image tokens carry

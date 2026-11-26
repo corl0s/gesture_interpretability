@@ -7,6 +7,11 @@
 #                                                        every 2nd layer; NSCENES (100) in chunks of CHUNK (25)
 #   MODE=swap  bash jobs/submit_gesture.sh [model ...]   mirror swap, one job per cue in CUES
 #                                                        (photo,cartoon,arrow), NPAIRS (150) pairs each
+#   MODE=text  bash jobs/submit_gesture.sh [model ...]   swap of text pieces (names, prefix, last) + steering
+#                                                        with the name-tag direction, scenes 100-300 (the
+#                                                        directions come from scenes 0-99); needs
+#                                                        $OUT/<model>/gesture_b2/name_tag_dirs.pt from b2_analyse
+#                                                        (hold with QSUB_EXTRA="-hold_jid <b2_analyse job>")
 # Env: OUT (results_gesture), OBJ (Kang renders), HANDS (cut-out dir with hands.json),
 #      EXCLUDE_HANDS (comma list), NSCENES (300), CHUNK (30), QSUB_EXTRA.
 # The CPU analysis (b1_analyse.py --ids_dir $OUT/<model>/gesture_ids [--spatial_ids ...]) is printed,
@@ -42,6 +47,10 @@ for m in ${@:-qwen3vl-8b}; do
       names+=(${t}_b2_$s)
     done
     echo "analysis: python experiments/b2_analyse.py --ids_dir $OUT/$m/gesture_b2  (hold on: $(IFS=,; echo "${names[*]}"))"
+  elif [ "$MODE" = text ]; then
+    for c in $(echo ${CUES:-photo,cartoon,arrow} | tr , ' '); do
+      sub ${t}_tx_$c $m b2_swap $COMMON --cue $c --n_pairs ${NPAIRS:-150} --layer_stride 2 --scene_start 100         --subsets names,name_A,name_B,prefix,last,text_all --steer_dirs $OUT/$m/gesture_b2/name_tag_dirs.pt --tag _text
+    done
   elif [ "$MODE" = swap ]; then
     for c in $(echo ${CUES:-photo,cartoon,arrow} | tr , ' '); do
       sub ${t}_sw_$c $m b2_swap $COMMON --cue $c --n_pairs ${NPAIRS:-150} --layer_stride 2

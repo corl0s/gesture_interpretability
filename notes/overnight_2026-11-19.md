@@ -164,3 +164,23 @@ Activations (decode chance .301; held-out var = within-group variance explained,
   hand (.52), so encoding the direction is not sufficient: the step from direction to object fails.
 Caveats: null95 computed only at L1,5,...,33 and is high (.66-.87): grid R2 is not informative here.
 spatial_nearest_acc at cue (photo .50 @L27, arrow .56) has no null yet; direction codes correlate with position.
+
+## B2 + mirror swap + B1 nulls (qwen3vl-8b, d3ec43c), 2026-11-26
+SCC logs: swap_summary_qwen3vl8b.txt, b2_analyse_qwen3vl8b.txt, b1_report_qwen3vl8b_run2.txt.
+Mirror swap (x points at A, y at B, same text; 150 pairs/cue that follow the cue; median ld_shift):
+  photo/cartoon/arrow alike: image_all 1.0 to L12, .9 L16, .3 L20, 0 L24; text_all 0 to L12, .1 L16, .7 L20,
+  1.0 L24+; img_cue (hand/arrow pixels) .29-.32 L8 -> 0 by L20; cue word 0 and object image tokens 0 at
+  EVERY layer; noise and other-hand controls ~0. Followers: photo 150/231, cartoon 150/241, arrow 150/190
+  candidates (anti-followers not logged).
+  -> pointing moves image -> text at L16-24; the cue-word direction code (B1) is not on the causal path.
+B2 tags (held-out by scene parity):
+  object image tokens: acc .50-.56 vs chance .30, but empty (no objects) .44 and pointed > fingertip-nearest
+  only .51 -> a proximity/hand-nearby effect from the vision encoder, not a pointed tag; swap 0.
+  NAME tokens (same object as target vs foil): photo .69 @L26, cartoon .69 @L24, arrow .85 @L22, chance .5,
+  empty .49-.52. Emerges L16-26 = the swap's image->text window. behav_r .21 (hands) / .47 (arrow).
+  -> candidate gesture binding on the object NAME. For hands it is more accurate than the answers (.69 vs .52).
+  Real-hand pixels carry little direction (img_cue var_angle .05-.18 vs cartoon .37-.58, arrow .56-.63).
+B1 nulls at every layer: spatial link at cue word well above null (cos .12-.33 vs null95 .01-.09), also for
+  empty (no objects) -> the hand word holds a location in spatial-ID code (hand/fingertip place?).
+Bug: cross-origin decoding splits by origin side but not by scene, so name-token identity leaks the cell at
+  tgt/ans (empty tgt cross .51-.56 vs within .33). Fix: split scenes too.

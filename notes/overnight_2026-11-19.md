@@ -217,3 +217,16 @@ Object image tokens: .54-.59 vs .30 but pointed > fingertip-nearest only .52-.56
 tgt = target's own location (cross-origin .76-.77 @L20); cue word = arm angle (arrow vA .42-.49); real-hand
   pixels carry little direction (img_cue vA .09-.13 vs cartoon .40-.47, arrow .46-.58).
 -> The B2 picture replicates across models; the tag peaks ~2 layers earlier (L18-20 of 28 vs L22-26 of 36).
+
+## Replication: qwen25vl-7b swaps + steering; scale sweep 2B, 2026-11-27
+Mirror swap (photo/cartoon): same as 8B, ~4 layers earlier: image_all 1 to L12, .57-.67 L16, .11 L18;
+  text_all .38-.43 L16, .88-.90 L18, 1 L20+; img_cue .43 L8 -> 0 by L18; cue word and object tokens 0;
+  controls ~0.
+Text swap: prefix .10-.20 L16, .32-.46 L18, .75-.78 L20, .89-.93 L22; last .33 L20, .88-.91 L22;
+  names .14-.17 at L18 only.
+Name-tag steering, only at the tag peak L18: s1 .09-.20, s3 .22 photo / .22 cartoon / .57 arrow; noise 0.
+Followers (LD_x - LD_y > .5 / < -.5 / median): photo .41/.08/.375, cartoon .40/.05/.375, arrow .62/.04/1.125
+  -> 7B follows the hand far more weakly than 8B (8B photo median 1.25).
+Scale sweep (behaviour, 40 scenes, n=578/cue; acc / acc when tip-nearest != target / pick-first):
+  qwen3vl-2b photo .469/.373/.542, cartoon .502/.410/.557, arrow .512/.402/.543 -> chance for every cue
+  (8B: .52/.44, .52/.43, .65/.55). 4B, 32B pending.

@@ -230,3 +230,17 @@ Followers (LD_x - LD_y > .5 / < -.5 / median): photo .41/.08/.375, cartoon .40/.
 Scale sweep (behaviour, 40 scenes, n=578/cue; acc / acc when tip-nearest != target / pick-first):
   qwen3vl-2b photo .469/.373/.542, cartoon .502/.410/.557, arrow .512/.402/.543 -> chance for every cue
   (8B: .52/.44, .52/.43, .65/.55). 4B, 32B pending.
+
+## Scale sweep complete + 7B arrow swap, 2026-11-27
+Behaviour, pilot scenes 0-40 (n=578/cue; acc / acc when tip-nearest != target / pick-first):
+            photo            cartoon          arrow
+  2B   .469/.373/.542   .502/.410/.557   .512/.402/.543
+  4B   .533/.447/.678   .522/.437/.619   .611/.509/.528
+  8B   .543/.473/.64    .554/.470/.62    .689/.601/.48   (pilot, older code)
+  32B  .578/.489/.657   .522/.412/.640   .697/.593/.542
+-> arrow improves with scale (.51 -> .70); both hands stay at .47-.58 with a first-named bias of .62-.68,
+   and below chance when the fingertip is nearest another object, even at 32B. Scale does not fix hands.
+7B arrow mirror swap: same as the others (image_all 1 -> .17 at L18; text_all .81 L18, ~1 L20+; cue word and
+  object tokens ~0; noise ~0). Followers .685 / wrong way .018 / median 1.25.
+Submitted on 638bcc7: tag validation 8985354-55, oracle 8B 8985356-58, tokens 8B 8985359-61,
+  oracle 7B (L16/18/20) 8985362-64, tokens 7B 8985365-67.

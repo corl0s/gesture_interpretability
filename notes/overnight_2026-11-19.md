@@ -208,3 +208,12 @@ Name tag by fingertip (n tgt-nearest 206 / foil-nearest 22 / neither 308), at be
 Cross-origin with scene split: empty tgt leak gone (.30-.33). Cue token: var_tip_cell > var_target for
   drawn cues (e.g. arrow L25 .27 vs .18), both ~0 for photo -> the cue word holds hand geometry (and is not
   causal: swap 0).
+
+## Replication: qwen25vl-7b B2 tags (Kang's reference model), 2026-11-26
+Name tag (chance .5; empty .47-.52): photo .647 @L18, cartoon .679 @L18, arrow .838 @L20 (8B: .69/.69/.85).
+  Fingertip split (tgt-nearest / foil-nearest n=22 / neither): photo .66/.73/.64, cartoon .72/.77/.64,
+  arrow .89/.86/.80 -> follows pointing, not proximity, as in 8B.
+Object image tokens: .54-.59 vs .30 but pointed > fingertip-nearest only .52-.56 and empty .37 -> proximity.
+tgt = target's own location (cross-origin .76-.77 @L20); cue word = arm angle (arrow vA .42-.49); real-hand
+  pixels carry little direction (img_cue vA .09-.13 vs cartoon .40-.47, arrow .46-.58).
+-> The B2 picture replicates across models; the tag peaks ~2 layers earlier (L18-20 of 28 vs L22-26 of 36).

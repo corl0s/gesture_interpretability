@@ -259,3 +259,18 @@ Cross-cue transfer (fit on one cue, test on another, disjoint scenes), best laye
   -> one shared "pointed at" code for real hand, cartoon and arrow.
 BUG: the held-out-hands split equalled the scene-parity split (scene gets hands[scene % 8]; every-other hand =
   even scenes). Fixed in 2ee982c (first/second half of hands); rerun pending.
+
+## Oracle injection 8B (b3_oracle, jobs 8985356-58), 2026-11-27
+Scenes 100-200 (directions fitted on 0-99), n=1328/cue. +s*w at target name, -s*w at foil name (s=1 = the
+natural tag size); anti = reversed; noise = equal norm. acc (acc when tip-nearest != target, pick-first):
+            base              oracle L22 s1/s3/s5     anti L22 s5       noise L22 s5
+  photo    .505 (.421, .628)  .538 / .609 / .668      .355 (.271)       .503
+  cartoon  .513 (.425, .597)  .538 / .587 / .629      .399 (.306)       .517
+  arrow    .621 (.516, .471)  .669 / .752 / .814      .349 (.229)       .615
+  L20 is close to L22 (photo s5 .649, arrow .782); L24 is weaker (photo s5 .569, arrow .733): by L24 the
+  information has moved off the names (text swap: prefix .89 at L24), so writing on the names comes too late.
+  Order-balanced acc tracks acc; pick-first-named barely moves (photo .62-.63 in every condition).
+-> The tag is causal in both directions (oracle up, anti down, monotonic in s; noise flat) and helps the hard
+   cases (photo tip-nearest-not-target .42 -> .61). At its natural size (s1) it adds only ~3 points: the
+   read-out gain is low. Even 5x the tag leaves the first-named bias untouched, so the bias is a separate
+   pathway, not a weak tag.

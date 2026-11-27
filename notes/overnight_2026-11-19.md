@@ -274,3 +274,17 @@ natural tag size); anti = reversed; noise = equal norm. acc (acc when tip-neares
    cases (photo tip-nearest-not-target .42 -> .61). At its natural size (s1) it adds only ~3 points: the
    read-out gain is low. Even 5x the tag leaves the first-named bias untouched, so the bias is a separate
    pathway, not a weak tag.
+
+## Per-token swap map 8B (b2_swap --token_layers, jobs 8985359-61), 2026-11-27
+Median ld_shift when one text token is swapped (100 following pairs/cue). Prompt "... Is the <cue> pointing
+at#1 the A or the B?" + prefix "The <cue> is#1 pointing at#2 the#4" (the#4 = last token, equals "last").
+                 L18   L20   L22   L24   L26
+  photo  at#1   .095  .100  .051  0     0
+         at#2   0     .078  .255  .368  .196
+         last   0     .050  .132  .439  .716
+  cartoon at#1  .100  .155  .051  0     0  | at#2 .023 .095 .321 .400 .190 | last 0 .041 .125 .450 .750
+  arrow  at#1   .107  .135  .060  0     0  | at#2 .037 .100 .333 .358 .211 | last 0 .050 .131 .439 .713
+  Smaller: prefix " is" (.07-.17 at L22), names (<= .18, nameA-2 for photo), " pointing" (<= .07).
+-> Route: names (tag, L18-22) -> question " at" (L18-20) -> prefix " at" (L22-24) -> last token (L24+).
+   The preposition "at" collects the pointed-at referent, the same for all three cues. No single token
+   carries it all at L22 (sum of tokens ~ the prefix swap .61): spread over the prefix, then the last token.

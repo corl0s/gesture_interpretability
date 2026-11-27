@@ -17,6 +17,8 @@ Controls (same layer, same positions):
 Text subsets (B2 found the pointing reaches the text at L16-24 and tags the object NAMES):
   name_A, name_B (all sub-tokens of each name in the question), names (both), prefix (the forced answer
   prefix "The {cue} is pointing at the"), last (its final token).
+Per-token map (--token_layers): every text token after the image swapped on its own, keyed by its role in
+  the template (nameA0 = A's last sub-token, "_pointing#1", ...).
 Steering (--steer_dirs = name_tag_dirs.pt from b2_analyse): at layer L, add s*w at B's name and -s*w at A's
   name (last sub-tokens; w = the cue's name-tag direction at L, target minus foil), for s in --steer_scales:
   steer_s<s>; control steer_noise_s<s> = random vectors of the same norm at the same positions. Use scenes the
@@ -96,6 +98,8 @@ def main():
     p.add_argument("--steer_dirs", default="", help="name_tag_dirs.pt from b2_analyse (enables steering)")
     p.add_argument("--steer_scales", default="1,3")
     p.add_argument("--tag", default="", help="output dir suffix: gesture_swap<tag>")
+    p.add_argument("--token_layers", default="",
+                   help="per-token map: at these layers swap every text token on its own (tok_<role> keys)")
     p.add_argument("--save_every", type=int, default=10)
     args = p.parse_args()
 
@@ -109,7 +113,8 @@ def main():
     first_tok = {n: vlm.tok.encode(" " + n, add_special_tokens=False)[0] for n in names}
     last_sub = {n: vlm.tok.tokenize(" " + n)[-1] for n in names}
     layers = list(range(0, vlm.n_layers, args.layer_stride))  # resid_pre of the final norm is not patched
-    subsets = args.subsets.split(",")
+    subsets = [x for x in args.subsets.split(",") if x]
+    token_layers = {int(x) for x in args.token_layers.split(",") if x}
     cw = G.CUE_WORD[args.cue]
     gen = torch.Generator().manual_seed(args.seed)
     steer, scales = None, [float(x) for x in args.steer_scales.split(",") if x]
@@ -162,6 +167,16 @@ def main():
                    "image_all": ex.image_pos.tolist(),
                    "text_all": list(range(img_start, ex.seq_len))}
             nA, nB = name_span(vlm, ex, A), name_span(vlm, ex, B)
+            roles, seen = {}, {}  # text position -> role: nameA<k>/nameB<k> or template token#occurrence
+            for i in range(img_start, ex.seq_len):
+                if i in nA:
+                    roles[i] = f"nameA{nA.index(i) - len(nA) + 1}"  # 0 = last sub-token
+                elif i in nB:
+                    roles[i] = f"nameB{nB.index(i) - len(nB) + 1}"
+                else:
+                    t_ = ex.tokens[i].replace("Ġ", "_").replace("Ċ", "NL")
+                    seen[t_] = seen.get(t_, 0) + 1
+                    roles[i] = f"{t_}#{seen[t_]}"
             n_pre = len(vlm.tok.tokenize(pre))
             assert ex.tokens[-n_pre:] == vlm.tok.tokenize(pre), (ex.tokens[-n_pre - 2:], pre)
             pos.update({"name_A": nA, "name_B": nB, "names": nA + nB,
@@ -187,6 +202,9 @@ def main():
                     px = torch.tensor(sorted(set(pos[s])))
                     if len(px):
                         res[s] = shift(vlm.forward(ex, patch={L: (px, cy[li][px])}))
+                if L in token_layers:
+                    for i, role in roles.items():
+                        res[f"tok_{role}"] = shift(vlm.forward(ex, patch={L: (torch.tensor([i]), cy[li][[i]])}))
                 for s in [s_ for s_ in ("cue_word", "img_cue", "names") if s_ in subsets]:
                     px = torch.tensor(sorted(set(pos[s])))
                     if not len(px):

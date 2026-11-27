@@ -12,6 +12,10 @@
 #                                                        directions come from scenes 0-99); needs
 #                                                        $OUT/<model>/gesture_b2/name_tag_dirs.pt from b2_analyse
 #                                                        (hold with QSUB_EXTRA="-hold_jid <b2_analyse job>")
+#   MODE=oracle bash jobs/submit_gesture.sh [model ...]  inject the correct name tag (oracle), the reverse
+#                                                        and equal-norm noise at L20/22/24, scenes 100-200
+#   MODE=tokens bash jobs/submit_gesture.sh [model ...]  per-token swap map of the text at L16-26, NPAIRS_TOK
+#                                                        (100) pairs per cue, scenes 100-300
 # Env: OUT (results_gesture), OBJ (Kang renders), HANDS (cut-out dir with hands.json),
 #      EXCLUDE_HANDS (comma list), NSCENES (300), CHUNK (30), QSUB_EXTRA.
 # The CPU analysis (b1_analyse.py --ids_dir $OUT/<model>/gesture_ids [--spatial_ids ...]) is printed,
@@ -50,6 +54,14 @@ for m in ${@:-qwen3vl-8b}; do
   elif [ "$MODE" = text ]; then
     for c in $(echo ${CUES:-photo,cartoon,arrow} | tr , ' '); do
       sub ${t}_tx_$c $m b2_swap $COMMON --cue $c --n_pairs ${NPAIRS:-150} --layer_stride 2 --scene_start 100         --subsets names,name_A,name_B,prefix,last,text_all --steer_dirs $OUT/$m/gesture_b2/name_tag_dirs.pt --tag _text
+    done
+  elif [ "$MODE" = oracle ]; then
+    for c in $(echo ${CUES:-photo,cartoon,arrow} | tr , ' '); do
+      sub ${t}_or_$c $m b3_oracle $COMMON --cue $c --scene_start 100 --scene_end ${ORACLE_END:-200} --steer_dirs $OUT/$m/gesture_b2/name_tag_dirs.pt --layers ${ORACLE_LAYERS:-20,22,24}
+    done
+  elif [ "$MODE" = tokens ]; then
+    for c in $(echo ${CUES:-photo,cartoon,arrow} | tr , ' '); do
+      sub ${t}_tk_$c $m b2_swap $COMMON --cue $c --n_pairs ${NPAIRS_TOK:-100} --layer_stride 2 --scene_start 100 --subsets last --token_layers 16,18,20,22,24,26 --tag _tok
     done
   elif [ "$MODE" = swap ]; then
     for c in $(echo ${CUES:-photo,cartoon,arrow} | tr , ' '); do

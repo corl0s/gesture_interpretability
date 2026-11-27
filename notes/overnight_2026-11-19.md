@@ -184,3 +184,27 @@ B1 nulls at every layer: spatial link at cue word well above null (cos .12-.33 v
   empty (no objects) -> the hand word holds a location in spatial-ID code (hand/fingertip place?).
 Bug: cross-origin decoding splits by origin side but not by scene, so name-token identity leaks the cell at
   tgt/ans (empty tgt cross .51-.56 vs within .33). Fix: split scenes too.
+
+## Round 2: text swap, name-tag steering, fingertip cell (qwen3vl-8b, dcab47f), 2026-11-26
+SCC logs: text_swap_summary_qwen3vl8b.txt, b2_analyse_qwen3vl8b_run2.txt, b1_report_qwen3vl8b_run3.txt.
+Candidates (all pairs A/B in one scene+origin): LD_x - LD_y > .5 / < -.5 / median:
+  photo .615 / .164 / 1.25 nats; cartoon .680 / .151 / 1.75; arrow .773 / .119 / 4.94.
+  -> the real hand DOES move the answer the right way in most pairs, but weakly (1.25 vs 4.94 nats for arrow);
+  item biases (first-named, fingertip proximity) then decide the sign, so accuracy stays ~.52.
+Text swap, median ld_shift (L20 / L22 / L24 / L28):
+  names     photo .13/.11/.06/0   cartoon .09/.08/0/0     arrow .11/.13/.08/.03
+  prefix    photo .27/.61/.89/.97 cartoon .28/.67/.89/.97 arrow .26/.64/.88/.95
+  last      ~.04/.13/.43/.77 for all cues; text_all .64-.72 / .96-.99 / ~1 / 1
+  noise_names and hand_names 0.
+  -> the pointing reaches the answer mainly through the answer-prefix tokens ("The hand is pointing at the",
+  L20-24), then the last token (L24-28). The names carry ~10%.
+Name-tag steering (+s*w at B's name, -s*w at A's, scenes 100-300, w fitted on 0-99), ld_shift L20 / L22:
+  s1  photo .13/.13  cartoon .10/.09  arrow .15/.22
+  s3  photo .41/.46  cartoon .29/.33  arrow .45/.63;  equal-norm noise 0 everywhere
+  -> causal and dose-dependent; s1 ~ the names swap (consistent). A validated but minor route.
+Name tag by fingertip (n tgt-nearest 206 / foil-nearest 22 / neither 308), at best layer:
+  photo .71/.59/.68, cartoon .69/.64/.69, arrow .93/.77/.80 -> follows pointing, small proximity boost
+  (foil-nearest n=22 is small).
+Cross-origin with scene split: empty tgt leak gone (.30-.33). Cue token: var_tip_cell > var_target for
+  drawn cues (e.g. arrow L25 .27 vs .18), both ~0 for photo -> the cue word holds hand geometry (and is not
+  causal: swap 0).

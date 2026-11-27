@@ -244,3 +244,18 @@ Behaviour, pilot scenes 0-40 (n=578/cue; acc / acc when tip-nearest != target / 
   object tokens ~0; noise ~0). Followers .685 / wrong way .018 / median 1.25.
 Submitted on 638bcc7: tag validation 8985354-55, oracle 8B 8985356-58, tokens 8B 8985359-61,
   oracle 7B (L16/18/20) 8985362-64, tokens 7B 8985365-67.
+
+## Name-tag validation (b2_tag_validate, 638bcc7), 2026-11-27
+Scene split (95% CI over scenes): 8B photo .690 [.637,.738] L26, cartoon .690 [.635,.742] L24, arrow .851
+  [.814,.884] L22, empty .524 [.472,.577]. 7B photo .647 [.591,.704] L18, cartoon .679 [.625,.727] L18,
+  arrow .838 [.793,.879] L20, empty .524.
+Pre-registered layer (chosen on one half, tested on the other; mean of the two halves):
+  8B photo L22 .59/.77 (mean .68), cartoon L22 .55/.79 (.67), arrow L22 .82/.88 (.85); empty ~.50.
+  7B photo .56/.73 (.64), cartoon .58/.59 (.59), arrow .75/.92 (.83).
+  The halves differ a lot for hands (scene-to-scene variability); the arrow is stable.
+Cross-cue transfer (fit on one cue, test on another, disjoint scenes), best layer:
+  8B photo->cartoon .69, photo->arrow .78, cartoon->arrow .77, cartoon->photo .67, arrow->photo .66,
+  arrow->cartoon .65; anything with empty ~.50. 7B: .65/.75/.77/.65/.64/.63.
+  -> one shared "pointed at" code for real hand, cartoon and arrow.
+BUG: the held-out-hands split equalled the scene-parity split (scene gets hands[scene % 8]; every-other hand =
+  even scenes). Fixed in 2ee982c (first/second half of hands); rerun pending.

@@ -8,7 +8,7 @@ mean(foil) on a fit set; on a test set, an image is scored correct when w . x(ta
   scene        fit on even scenes, test on odd, and the reverse (as b2_analyse)
   prereg       the layer is chosen on one scene half (highest fit-half accuracy, with a nested split inside
                that half) and accuracy reported on the other half: no after-the-fact layer choice
-  hands        fit on scenes with one half of the hands, test on scenes with the other half (and reverse):
+  hands        fit on scenes with the first half of the hands (sorted), test on scenes with the other half:
                does the tag survive a change of hand appearance?
   cross-cue    fit on cue a (even scenes), test on cue b (odd scenes), and the reverse: is it one gesture
                code shared by real hand, cartoon and arrow?
@@ -113,7 +113,9 @@ def main():
     cues = [c for c in meta["cues"]]
     by_cue = {c: [i for i, x in enumerate(rows) if x["cue"] == c] for c in cues}
     hands = sorted({x["hand"] for x in rows})
-    half = set(hands[::2])
+    # scenes get hands[scene % n_hands], so every other hand would select exactly the even scenes (= the scene
+    # split); the first half of the hands covers both scene parities
+    half = set(hands[: len(hands) // 2])
     res = {"model": meta["model"], "layers": layers, "hands_half_A": sorted(half), "cues": {}, "cross_cue": {}}
 
     data = {}  # (cue, L_i) -> built rows
@@ -141,19 +143,24 @@ def main():
         pre = []
         for f in (0, 1):
             v = np.array([fa[f] for fa in out["fold_acc"]], float)
+            v[np.array(layers) == 0] = np.nan  # layer 0 = word embeddings: identical in every image, ties only
             L_i = int(np.nanargmax(v)) if np.isfinite(v).any() else len(layers) // 2
             D = data[(c, L_i)]
             mf = D["scene"] % 2 == f
             hit, sc = test(sub(D, ~mf), fit(sub(D, mf)))
             pre.append({"chosen_on_half": f, "layer": layers[L_i], "acc": round(float(hit.mean()), 4),
                         "ci95": boot_ci(hit, sc, rng), "n": len(hit)})
-        b = int(np.nanargmax(out["scene_acc"]))
+        sa = np.array(out["scene_acc"], float)
+        sa[np.array(layers) == 0] = np.nan
+        b = int(np.nanargmax(sa))
         D = data[(c, b)]
         ev = D["scene"] % 2 == 0
         hit, sc = two_way(D, ev, ~ev)
         out["best_scene"] = {"layer": layers[b], "acc": out["scene_acc"][b], "ci95": boot_ci(hit, sc, rng)}
         out["prereg"] = pre
-        bh = int(np.nanargmax(out["hands_acc"])) if np.isfinite(out["hands_acc"]).any() else b
+        ha = np.array(out["hands_acc"], float)
+        ha[np.array(layers) == 0] = np.nan
+        bh = int(np.nanargmax(ha)) if np.isfinite(ha).any() else b
         out["best_hands"] = {"layer": layers[bh], "acc": out["hands_acc"][bh]}
         res["cues"][c] = out
         print(f"[{c:7s}] scene split best L{layers[b]} {out['best_scene']} | prereg {pre} | "

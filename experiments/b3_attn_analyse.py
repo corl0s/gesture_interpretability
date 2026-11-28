@@ -87,7 +87,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--attn_dir", required=True)
     p.add_argument("--show_layers", default="")
-    args = p.parse_args()
+    args, _ = p.parse_known_args()  # tolerate --model/--out from the SCC CPU wrapper
     res = {}
     for f in sorted(glob.glob(os.path.join(args.attn_dir, "*.pt"))):
         d = torch.load(f, weights_only=False)

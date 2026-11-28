@@ -314,6 +314,7 @@ Fit on scenes with half-A hands, test on the other hands, and the reverse (best 
   arrow     .858 L22 (.851)                    .869 L20 (.838)
   empty     .522 (.524)                        .535 (.524)
 -> The tag carries over to hands it was not fitted on (.60-.64, above chance), with a drop of .05-.08 for the
-   hand cues. The cartoon drops as much as the real hand, though its appearance does not change with the
-   hand photo (only the geometry taken from hands.json), so part of the drop is scene-group variability
-   (prereg halves already range .55-.79 for hands), not only hand appearance. Arrow unchanged.
+   hand cues. The cartoon does not use the hand photo at all (draw_hand), so for the cartoon this split is
+   just another scene grouping (scene % 8 in 0-3 vs 4-7), and it drops as much (.69 -> .64) as the real
+   hand (.69 -> .62). So the drop is scene-group variability (prereg halves already range .55-.79), with
+   no clear extra cost from an unseen hand appearance. Arrow unchanged.

@@ -288,3 +288,19 @@ at#1 the A or the B?" + prefix "The <cue> is#1 pointing at#2 the#4" (the#4 = las
 -> Route: names (tag, L18-22) -> question " at" (L18-20) -> prefix " at" (L22-24) -> last token (L24+).
    The preposition "at" collects the pointed-at referent, the same for all three cues. No single token
    carries it all at L22 (sum of tokens ~ the prefix swap .61): spread over the prefix, then the last token.
+
+## Oracle + token map 7B (jobs 8985362-67), 2026-11-27
+Oracle (scenes 100-200, n=1328/cue; layers 16/18/20). Only L18 works (as with steering):
+            base (tipNNT, 1st)   oracle L18 s1/s3/s5     anti L18 s5   noise L18 s5
+  photo    .451 (.379, .596)     .469 / .512 / .545      .371          .454
+  cartoon  .444 (.363, .576)     .462 / .499 / .538      .358          .441
+  arrow    .528 (.402, .510)     .593 / .705 / .751      .281          .529
+  L16 and L20: <= +.02 (hands), +.06/.14 (arrow s5). Pick-first-named unchanged (.58-.61 hands).
+-> Same as 8B: causal both ways, noise flat, low gain at natural size, first-named bias untouched; the 7B
+   window is a single layer (L18) and the hands only get to ~.54 even at 5x.
+Token map (median ld_shift, 100 pairs/cue):   L16   L18   L20   L22   L24
+  at#1 (question)     photo .111 .082 0 | cartoon .111 .125 0 | arrow .124 .130 .027
+  at#2 (prefix)       photo .109 .176 .394 0 | cartoon .069 .154 .333 0 | arrow .042 .110 .315 .027
+  last                photo .011 .125 .333 .894 .909 | cartoon 0 .106 .333 .889 .929 | arrow .020 .076 .333 .889 .938
+  " is", " pointing": <= .11 (smaller than 8B); names <= .13.
+-> Same route as 8B (at#1 -> at#2 -> last), about 2 layers earlier; the last token holds ~.89 by L22.

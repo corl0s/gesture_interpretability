@@ -318,3 +318,24 @@ Fit on scenes with half-A hands, test on the other hands, and the reverse (best 
    just another scene grouping (scene % 8 in 0-3 vs 4-7), and it drops as much (.69 -> .64) as the real
    hand (.69 -> .62). So the drop is scene-group variability (prereg halves already range .55-.79), with
    no clear extra cost from an unseen hand appearance. Arrow unchanged.
+
+## Attention 8B (b3_attention 8993330-32, analysis 8993338), 2026-11-27
+Scenes 100-160, n=801/cue. Per head, order-balanced acc of "attends more to target than foil"; the head is
+picked on even scenes and scored on odd (and the reverse); rho = Spearman of that head's score with LD.
+                               arrow: acc (heads)        rho   | cartoon | photo
+  at2 -> name (tgt>foil)       .698 (L21h15 both halves) .30   | .522    | .551
+  last -> name                 .666 (L23h28 / L26h20)    .82   | .540    | .529
+  is -> name                   .614 (L22h31 both)        .23   | .530    | .505
+  at1 -> object image          .592 (L21h31 / L23h28)    .71   | .484    | .494
+  at2 -> object image          .603 (L21h8 / L25h30)     .75   | .504    | .504
+  last -> object image         .638 (L27h28 both)        .80   | .544    | .487
+  name -> own object image     .99-1.0 at L14+ for every cue (sanity: names bind their own picture)
+  Best single head per layer: arrow rises from ~.52 (L12-18) to .63-.67 (L20-26); hands stay .50-.57.
+Mean attention mass: at1 -> image peaks at L18 (.58-.64; the at1 swap effect is L18-20); the cue word looks
+  at the cue most at L18 (cartoon .15, photo .11, arrow .08); at2 -> each name ~.05-.065 at L20 (no
+  target/foil difference for hands).
+-> For the arrow there are specific heads at L21-27 that read the target (its name, and its picture
+   directly), stable across halves, and their preference tracks the answer (rho .7-.8). For both hands no
+   head separates target from foil (held-out .48-.55), although the tag is decodable on the names (.69)
+   and injecting it helps: the read-out heads exist but the hand's tag is too weak for them to pick up.
+   Caveat: attention weight is not information flow; next is ablating these heads.

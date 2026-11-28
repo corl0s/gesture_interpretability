@@ -339,3 +339,15 @@ Mean attention mass: at1 -> image peaks at L18 (.58-.64; the at1 swap effect is 
    head separates target from foil (held-out .48-.55), although the tag is decodable on the names (.69)
    and injecting it helps: the read-out heads exist but the hand's tag is too weak for them to pick up.
    Caveat: attention weight is not information flow; next is ablating these heads.
+
+## Attention 7B (8993333-35, analysis 8993339), 2026-11-27
+Same analysis, n=801/cue. Held-out selected head acc, arrow / cartoon / photo:
+  at2 -> name .489 / .502 / .484;  last -> name .561 / .518 / .526;  at1 -> object .562 / .532 / .525;
+  last -> object .518 / .507 / .508;  name -> at1 .605 (L17h27 both halves, rho .60) / .524 / .489;
+  name -> img_cue .571 / .604 / .596 (L21h18 both halves; rho .11-.23);  name -> own object .99 (all).
+Mass: at1 -> image peaks L14-16 (.43-.50), two layers before 8B; cue word -> cue peaks L14 (cartoon .15).
+-> 7B has no strong target-reading head, not even for the arrow. This matches its behaviour: 7B arrow is
+   .53 on scenes 100-200 (8B arrow .62, which has heads at .64-.70). The tag is still on the names (arrow
+   .84) and injecting it works at L18, so in 7B the tag is written but barely read by attention. The one
+   consistent arrow head is the target name attending to question "at" (L17h27): a candidate writer of the tag.
+   7B ablation (heads from 7B arrow.pt) is therefore a weak test.

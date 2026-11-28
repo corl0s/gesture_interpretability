@@ -304,3 +304,16 @@ Token map (median ld_shift, 100 pairs/cue):   L16   L18   L20   L22   L24
   last                photo .011 .125 .333 .894 .909 | cartoon 0 .106 .333 .889 .929 | arrow .020 .076 .333 .889 .938
   " is", " pointing": <= .11 (smaller than 8B); names <= .13.
 -> Same route as 8B (at#1 -> at#2 -> last), about 2 layers earlier; the last token holds ~.89 by L22.
+
+## Held-out hands, fixed split (tagval2 8993328-29), 2026-11-27
+Hands half A = first 4 of the 8 sorted hands (rows split 1604 even / 1568 odd scenes, so not scene parity).
+Fit on scenes with half-A hands, test on the other hands, and the reverse (best layer; scene-split for comparison):
+            8B held-out hands (scene split)    7B held-out hands (scene split)
+  photo     .621 L22 (.690)                    .595 L18 (.647)
+  cartoon   .636 L22 (.690)                    .621 L18 (.679)
+  arrow     .858 L22 (.851)                    .869 L20 (.838)
+  empty     .522 (.524)                        .535 (.524)
+-> The tag carries over to hands it was not fitted on (.60-.64, above chance), with a drop of .05-.08 for the
+   hand cues. The cartoon drops as much as the real hand, though its appearance does not change with the
+   hand photo (only the geometry taken from hands.json), so part of the drop is scene-group variability
+   (prereg halves already range .55-.79 for hands), not only hand appearance. Arrow unchanged.

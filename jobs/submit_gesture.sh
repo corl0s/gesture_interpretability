@@ -19,6 +19,9 @@
 #   MODE=attn  bash jobs/submit_gesture.sh [model ...]   attention mass per layer/head from the " at" tokens,
 #                                                        names and last token to names/objects/cue, scenes
 #                                                        100-${ATTN_END:-160}; analysis b3_attn_analyse.py
+#   MODE=ablate bash jobs/submit_gesture.sh [model ...]  zero the target-reading heads picked from
+#                                                        gesture_attn/${ABL_FROM:-arrow}.pt (+ random same-layer
+#                                                        heads), scenes 200-260, NHEADS (10) per set
 # Env: OUT (results_gesture), OBJ (Kang renders), HANDS (cut-out dir with hands.json),
 #      EXCLUDE_HANDS (comma list), NSCENES (300), CHUNK (30), QSUB_EXTRA.
 # The CPU analysis (b1_analyse.py --ids_dir $OUT/<model>/gesture_ids [--spatial_ids ...]) is printed,
@@ -71,6 +74,10 @@ for m in ${@:-qwen3vl-8b}; do
       sub ${t}_at_$c $m b3_attention $COMMON --cue $c --scene_start 100 --scene_end ${ATTN_END:-160}
     done
     echo "analysis: python experiments/b3_attn_analyse.py --attn_dir $OUT/$m/gesture_attn"
+  elif [ "$MODE" = ablate ]; then
+    for c in $(echo ${CUES:-photo,cartoon,arrow} | tr , ' '); do
+      sub ${t}_ab_$c $m b3_head_ablate $COMMON --cue $c --scene_start 200 --scene_end ${ABL_END:-260} --attn_file $OUT/$m/gesture_attn/${ABL_FROM:-arrow}.pt --n_heads ${NHEADS:-10}
+    done
   elif [ "$MODE" = swap ]; then
     for c in $(echo ${CUES:-photo,cartoon,arrow} | tr , ' '); do
       sub ${t}_sw_$c $m b2_swap $COMMON --cue $c --n_pairs ${NPAIRS:-150} --layer_stride 2
